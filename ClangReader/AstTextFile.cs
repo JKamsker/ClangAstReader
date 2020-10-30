@@ -1,5 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace ClangReader
 {
@@ -20,8 +24,8 @@ namespace ClangReader
         public string filePointer;
 
         public AstTokenContext context;
-        public string[] properties = new string[0];
-        public string[] attributes = new string[0];
+        public string[] properties = Array.Empty<string>();
+        public string[] attributes = Array.Empty<string>();
 
         public System.Collections.Generic.List<AstToken> children = new System.Collections.Generic.List<AstToken>();
         public AstToken parent;
@@ -30,6 +34,51 @@ namespace ClangReader
         {
             return name;
         }
+
+        public IEnumerable<AstToken> TraverseParents(bool includeThis = false)
+        {
+            if (includeThis)
+            {
+                yield return this;
+            }
+
+            if (parent == null)
+            {
+                yield break;
+            }
+
+            foreach (var parents in parent.TraverseParents(true))
+            {
+                yield return parents;
+            }
+        }
+
+        public AstTokenDto AsTokenDto()
+        {
+            var thisCopy = new AstTokenDto
+            {
+                Name = name,
+                Attributes = attributes,
+                Properties = properties,
+                Children = new List<AstTokenDto>(children.Count),
+            };
+
+            foreach (var child in children)
+            {
+                thisCopy.Children.Add(child.AsTokenDto());
+            }
+
+            return thisCopy;
+        }
+    }
+
+    public class AstTokenDto
+    {
+        public string Name { get; set; }
+        public string[] Properties { get; set; } = Array.Empty<string>();
+        public string[] Attributes { get; set; } = Array.Empty<string>();
+
+        public List<AstTokenDto> Children { get; set; }
     }
 
     public class AstTextFile
@@ -77,7 +126,7 @@ namespace ClangReader
                     declaration = line.Substring(tokenEnd + 1);
                 }
 
-                AstToken astToken = this.ParseTokenDescription(token, declaration, ref contextFilename);
+                AstToken astToken = ParseTokenDescription(token, declaration, ref contextFilename);
                 if (lineDepth == 0)
                 {
                     rootTokens.Add(astToken);
@@ -95,7 +144,7 @@ namespace ClangReader
             }
         }
 
-        protected string GetSufix(string source)
+        protected static string GetSufix(string source)
         {
             if (source[source.Length - 1] == '>') return source;
             for (int i = source.Length - 1; i >= 0; i--)
@@ -104,62 +153,91 @@ namespace ClangReader
             }
             return source;
         }
-        protected string[] GetStringArray(string source)
+
+        protected static string[] GetStringArray(string source)
         {
+            var sourceCopy = source;
             System.Collections.Generic.List<string> parts = new System.Collections.Generic.List<string>();
 
             int depth = 0;
             bool quotedSingle = false;
             bool quotedDouble = false;
-            while (source.Length > 0)
+            while (sourceCopy.Length > 0)
             {
                 bool tryAgain = false;
-                for (int i = 0; i < source.Length; i++)
+                for (int i = 0; i < sourceCopy.Length; i++)
                 {
-                    if (source[i] == '<' && !quotedDouble && !quotedSingle) depth++;
-                    else if (source[i] == '>' && !quotedDouble && !quotedSingle && depth > 0) depth--;
-                    else if (source[i] == '\'' && !quotedDouble)
+                    if (sourceCopy[i] == '<' && !quotedDouble && !quotedSingle)
                     {
-                        if (quotedSingle) depth--;
-                        else depth++;
+                        depth++;
+                    }
+                    else if (sourceCopy[i] == '>' && !quotedDouble && !quotedSingle && depth > 0)
+                    {
+                        depth--;
+                    }
+                    else if (sourceCopy[i] == '\'' && !quotedDouble)
+                    {
+                        if (quotedSingle)
+                        {
+                            depth--;
+                        }
+                        else
+                        {
+                            depth++;
+                        }
+
                         quotedSingle = !quotedSingle;
                     }
-                    else if (source[i] == '\"' && !quotedSingle)
+                    else if (sourceCopy[i] == '\"' && !quotedSingle)
                     {
                         if (quotedDouble) depth--;
                         else depth++;
                         quotedDouble = !quotedDouble;
                     }
-                    else if (source[i] == ' ' && depth == 0)
+                    else if (sourceCopy[i] == ' ' && depth == 0)
                     {
-                        string subvalue = source.Substring(0, i);
-                        parts.Add(subvalue);
+                        var cutTighter = sourceCopy[0] == '\'' && sourceCopy[i-1] == '\'';
 
-                        source = source.Substring(i + 1);
+                        string subvalue = cutTighter ?
+                            sourceCopy.Substring(1, i - 2) :
+                            sourceCopy.Substring(0, i);
+
+                        parts.Add(subvalue);
+                       
+                        sourceCopy = sourceCopy.Substring(i + 1);
                         tryAgain = true;
                         break;
                     }
                 }
 
                 if (tryAgain) continue;
-                parts.Add(source);
-                source = "";
+
+              
+
+                parts.Add(sourceCopy);
+                sourceCopy = "";
             }
+
+            //if (parts.Contains("'int'"))
+            //{
+            //    Debugger.Break();
+            //}
 
             return parts.ToArray();
         }
 
-        protected AstToken ParseTokenDescription(string name, string description, ref AstTokenContext contextFilename)
+        private static AstToken ParseTokenDescription(string name, string description, ref AstTokenContext contextFilename)
         {
             var token = new AstToken() { name = name };
-            string[] parameters = this.GetStringArray(description);
+            string[] parameters = GetStringArray(description);
             int parameterStartIndex = 0;
 
-            string sufix = this.GetSufix(name);
+            string sufix = GetSufix(name);
             switch (sufix)
             {
                 case "Decl":
                     token.offset = parameters[0];
+
                     parameterStartIndex = 1;
                     token.fileContext = parameters[parameterStartIndex];
                     while (!token.fileContext.StartsWith("<"))
@@ -176,6 +254,7 @@ namespace ClangReader
                     token.filePointer = parameters[parameterStartIndex + 1];
                     parameterStartIndex += 2;
                     break;
+
                 case "Type":
                 case "Record":
                 case "Typedef":
@@ -186,9 +265,12 @@ namespace ClangReader
                 case "Field":
                 case "Alias":
                 case "Comment":
+                case "Var":
+
                     token.offset = parameters[0];
                     parameterStartIndex = 1;
                     break;
+
                 case "Attr":
                 case "Expr":
                 case "Literal":
@@ -199,6 +281,7 @@ namespace ClangReader
                     token.fileContext = parameters[1];
                     parameterStartIndex = 2;
                     break;
+
                 case "Data":
                 case "Constructor":
                 case "Assignment":
@@ -213,14 +296,26 @@ namespace ClangReader
                 case "Overrides:":
                 case "...":
                 case "array":
+
+                case "value:":
+                case "Guid":
+                case "inherited": //unsure
+
                     break;
+
                 case "original":
                     token.name = name + parameters[0];
                     token.offset = parameters[1];
                     parameterStartIndex = 2;
                     break;
-                default: throw new NotImplementedException(name);
+
+                default: break; //throw new NotImplementedException(name);
             }
+
+            //if (token.offset == "0x26c79321948")
+            //{
+            //    Debugger.Break();
+            //}
 
             token.properties = parameters.Where((value, index) => index >= parameterStartIndex).ToArray();
 
@@ -231,6 +326,16 @@ namespace ClangReader
                 if (fileContext.Contains(",")) fileContext = fileContext.Substring(0, fileContext.IndexOf(","));
 
                 string[] parts = fileContext.Split(':');
+
+                while (parts.Length > 3)
+                {
+                    var newPart = string.Join(":", parts[0], parts[1]);
+
+                    parts = Enumerable.Empty<string>()
+                        .Concat(new[] { newPart })
+                        .Concat(parts.Skip(2))
+                        .ToArray();
+                }
 
                 if (parts[0] == "<invalid sloc>")
                 {

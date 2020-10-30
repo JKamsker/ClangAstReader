@@ -3,26 +3,26 @@ using System.Collections.Generic;
 
 namespace ClangReader.Types
 {
-    class TypeDeclaration
+    public class TypeDeclaration
     {
         public bool isBuildIn;
         public bool isPointer;
         public string name;
     }
 
-    class TypedefDeclaration
+    public class TypedefDeclaration
     {
         public string name;
         public TypeDeclaration alias;
     }
 
-    class FunctionProtoDeclaration : TypeDeclaration
+    public class FunctionProtoDeclaration : TypeDeclaration
     {
         public List<TypeDeclaration> parameters = new List<TypeDeclaration>();
         public TypeDeclaration returnType;
     }
 
-    class VariableDeclaration
+    public class VariableDeclaration
     {
         public string name;
         public string type;
@@ -31,7 +31,7 @@ namespace ClangReader.Types
         public string value;
     }
 
-    class FunctionDeclaration
+    public class FunctionDeclaration
     {
         public class Parameter
         {
@@ -45,7 +45,7 @@ namespace ClangReader.Types
         public string body;
     }
 
-    class StructureDeclaration
+    public class StructureDeclaration
     {
         public string name;
         public bool isClass;
@@ -62,7 +62,7 @@ namespace ClangReader.Types
         public List<string> others = new List<string>();
     }
 
-    class EnumDeclaration
+    public class EnumDeclaration
     {
         public string name;
 

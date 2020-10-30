@@ -1,659 +1,295 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Text.RegularExpressions;
+
+using ClangReader.LanguageTranslation;
+using ClangReader.Models;
 using ClangReader.Types;
+using ClangReader.Utilities;
+
+using Newtonsoft.Json;
 
 namespace ClangReader
 {
-    class TranslationFile
+    internal class MainClass
     {
-        public Dictionary<string, TypedefDeclaration> typedef = new Dictionary<string, TypedefDeclaration>();
-        public Dictionary<string, VariableDeclaration> variables = new Dictionary<string, VariableDeclaration>();
-        public Dictionary<string, FunctionDeclaration> functions = new Dictionary<string, FunctionDeclaration>();
-        public Dictionary<string, StructureDeclaration> structures = new Dictionary<string, StructureDeclaration>();
-        public Dictionary<string, EnumDeclaration> enums = new Dictionary<string, EnumDeclaration>();
-    }
-
-    class MainClass
-    {
-        public static Dictionary<string, TranslationFile> translation = new Dictionary<string, TranslationFile>();
-        protected static TranslationFile GetTranslation(string className)
-        {
-            if (!translation.ContainsKey(className))
-                translation.Add(className, new TranslationFile());
-            return translation[className];
-        }
+        //public static Dictionary<string, TranslationFile> translation = new Dictionary<string, TranslationFile>();
 
         public static void Main(string[] args)
         {
-            var files = System.IO.Directory.GetFiles("F:/cache/", "*.dump");
-            int counter = 0;
-            foreach (var file in files)
+            //var engine = new StringSplitEngine
+            //(
+            //    new EnclosureOptions('\''),
+            //    new EnclosureOptions('"'),
+            //    new EnclosureOptions('<', '>')
+            //);
+
+            //var result = engine.Split("'OI BOY' Boy Oi <start ay ay <level oi d > end > this should be extra <start but no< end >");
+
+            string input = "one \"two two\" three \"four four\" five six";
+            var parts = Regex.Matches(input, @"[\""].+?[\""]|[^ ]+")
+                .Cast<Match>()
+                .Select(m => m.Value)
+                .ToList();
+
+            //var splitArray = Regex.Split(subjectString, "(?<=^[^\"]*(?:\"[^\"]*\"[^\"]*)*) (?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+
+            var forbidden = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                Console.WriteLine("[{0}/{1}] {2}", counter++, files.Length, file);
-                if (counter < 25) continue;
+                "WhileStmt",
+                "ForStmt",
+                "DoStmt",
+            };
 
-                AstTextFile dumpFile = new AstTextFile(file);
-                //string astDumpPath = "/home/misha/Projects/cache/functionExecute.cpp.dump";
-                //string astDumpPath = "F:/cache/jsmn.cpp.dump";
-                //AstTextFile dumpFile = new AstTextFile(astDumpPath);
+            ProcessFile(forbidden, @"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast");
+            //var files = System.IO.Directory.GetFiles(@"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout", "*.ast");
+            //int counter = 0;
+            //foreach (var file in files)
+            //{
+            //    Console.WriteLine("[{0}/{1}] {2}", counter++, files.Length, file);
+            //    //if (counter < 25) continue;
 
-                foreach (var rootToken in dumpFile.rootTokens)
-                {
-                    foreach (var childToken in rootToken.children)
-                        ProcessMainLevelToken(childToken);
-                }
-
-                translation.Clear();
-                //break;
-            }
+            //    ProcessFile(forbidden, file);
+            //}
             Console.WriteLine("[Wait for key press]");
             Console.ReadKey();
         }
 
-        protected static void ProcessMainLevelToken(AstToken token)
+        private static void ProcessFile(HashSet<string> forbidden, string file)
         {
-            // process only non standart file source
-            if (!token.context.sourceFile.StartsWith("<", StringComparison.InvariantCulture) &&
-                !token.context.sourceFile.StartsWith("/usr", StringComparison.InvariantCulture))
+            AstTextFile dumpFile = new AstTextFile(file);
+            //string astDumpPath = "/home/misha/Projects/cache/functionExecute.cpp.dump";
+            //string astDumpPath = "F:/cache/jsmn.cpp.dump";
+            //AstTextFile dumpFile = new AstTextFile(astDumpPath);
+
+            foreach (var rootToken in dumpFile.rootTokens)
             {
-                switch (token.name)
+                var methodDecls = rootToken.children
+                    .Where(x => x.name == "CXXMethodDecl")
+                    .Where(x => x.context.sourceFile?.EndsWith("TNetSender.cpp") == true || x.context.sourceFile?.Contains("CSSender") == true)
+                    .ToList();
+
+                foreach (var methodDecl in methodDecls)
                 {
-                    case "TypedefDecl":
-                        ProcessTypedef(token);
-                        break;
-                    case "UsingDirectiveDecl":
-                        //    Console.WriteLine("    using {0}", string.Join(" ", token.properties));
-                        break;
-                    case "VarDecl":
-                        ProcessVariableDeclaration(token);
-                        break;
-                    case "FunctionDecl":
-                        ProcessFunctionDeclaration(token);
-                        break;
-                    case "EnumDecl":
-                        ProcessEnum(token);
-                        break;
-                    case "CXXRecordDecl": // declaration of struct/class without body
-                        ProcessStructDeclaration(token);
-                        break;
-                    case "EmptyDecl": break;
-                    case "LinkageSpecDecl":
-                        foreach (var childToken in token.children)
-                            ProcessMainLevelToken(childToken);
-                        break;
-                    default: throw new NotImplementedException(token.name);
+                    Console.WriteLine();
+                    Console.WriteLine();
+                    ProcessMethod(forbidden, methodDecl);
                 }
             }
         }
 
-        protected static string GetTranslatedTargetClass(string sourceFile)
+        private static void ProcessMethod(HashSet<string> forbidden, AstToken methodDecl)
         {
-            if (sourceFile.StartsWith("./", StringComparison.InvariantCulture)) sourceFile = sourceFile.Substring(2);
-            sourceFile = System.IO.Path.GetFileNameWithoutExtension(sourceFile);
-            return char.ToUpper(sourceFile[0]) + sourceFile.Substring(1);
-        }
-        protected static string GetTranslatedTargetFile(string sourceFile)
-        {
-            if (sourceFile.StartsWith("./", StringComparison.InvariantCulture)) sourceFile = sourceFile.Substring(2);
-            var extension = System.IO.Path.GetExtension(sourceFile);
-            sourceFile = System.IO.Path.GetFileNameWithoutExtension(sourceFile);
-            return char.ToUpper(sourceFile[0]) + sourceFile.Substring(1) + (extension == ".h" ? "Header" : "Cpp");
-        }
+            //  var meth = JsonConvert.SerializeObject(methodDecl.AsTokenDto(),Formatting.Indented);
 
-        protected static TypeDeclaration GetTypeDeclaration(AstToken token)
-        {
-            switch (token.name)
+            var methodName = methodDecl.properties.FirstOrDefault();
+            Console.WriteLine($"Name: {methodName}");
+
+            if (methodName == "SendCS_FINISHSKILL_ACK")
             {
-                case "BuiltinType":
-                    return new TypeDeclaration() { name = token.properties[0], isBuildIn = true };
-                case "PointerType":
-                    var pointerDeclaration = GetTypeDeclaration(token.children[0]);
-                    pointerDeclaration.isPointer = true;
-                    return pointerDeclaration;
-                case "RecordType":
-                    return new TypeDeclaration() { name = token.properties[0] };
-                case "ElaboratedType":  // struct
-                    return GetTypeDeclaration(token.children[0]);
-                case "TypedefType":
-                    return new TypeDeclaration() { name = token.properties[0] };
-                case "ParenType":
-                    switch (token.children[0].name)
+                Debugger.Break();
+            }
+
+            var saidMsg = GetVariableThatGetsSaid(methodDecl).FirstOrDefault();
+            if (saidMsg == null)
+            {
+                Console.WriteLine("\tNo message said");
+                return;
+            }
+
+            var usages = GetUsages(saidMsg, methodDecl)
+                // .Where(x => x.TraverseParents(true).Any(m => m.name == "MemberExpr" && m.properties.Contains(".SetID")))
+                .ToList();
+
+            foreach (var usage in usages)
+            {
+                //var allParents = usage.parent.TraverseParents().ToList();
+                var parentsInMethod = usage.parent
+                    .TraverseParents()
+                    .TakeWhile(x => x != methodDecl)
+                    .ToList();
+
+                var goodParents = parentsInMethod
+                    .Where(x => x.name == "CXXOperatorCallExpr")
+                    .Where(x => x.properties.Length == 3 && (x.properties[2] == "<<" || x.properties[2] == "'<<'"))
+                    .Where(x => x.children.Count == 3)
+                    .ToList();
+
+                foreach (var parent in goodParents)
+                {
+                    var decl = parent.children[2].VisitEnumerable(x => x.name == "DeclRefExpr").FirstOrDefault();
+                    if (decl == null)
                     {
-                        case "FunctionProtoType":
-                            var functionDeclaration = GetFunctionProtoDeclaration(token.children[0]);
-                            functionDeclaration.name = token.properties[0];
-                            functionDeclaration.isBuildIn = false;
-                            return functionDeclaration;
-                        default: throw new NotImplementedException(token.children[0].name);
+                        continue;
                     }
-                case "QualType": // type with modificator
-                    return GetTypeDeclaration(token.children[0]);
-                case "EnumType": // type with modificator
-                    return new TypeDeclaration() { name = token.properties[0] };
-                case "...": // params
-                    return new TypeDeclaration() { name = token.name };
-                case "TemplateSpecializationType":
-                    return null; // TODO
-                default: throw new NotImplementedException(token.name);
+
+                    var properties = new DeclRefExprProperties(decl);
+
+                    Console.WriteLine($"\t[{properties.InstanceId}] {properties.Name} ({properties.Type})");
+
+                    var illegalOperation = decl.TraverseParents().TakeWhile(x => x != methodDecl).FirstOrDefault(x => forbidden.Contains(x.name));
+                    if (illegalOperation != null)
+                    {
+                        Console.WriteLine($"\tIllegal operation - {illegalOperation.name}");
+
+                        DebugNodes(decl.TraverseParents().TakeWhile(x => x != methodDecl));
+
+                        Console.WriteLine();
+                    }
+                }
             }
+
+            //var found = new List<AstToken>();
+            //methodDecl.Visit
+            //(
+
+            //    x => (x.name == "DeclRefExpr" && x.properties[2] == "ParmVar"),
+            //    x => found.Add(x)
+            //);
+
+            //ProcessSetInstruction(methodDecl);
+
+            //var compounts = found.Select(x => new
+            //{
+            //    Name = x.properties[4],
+            //    Type = x.properties[5],
+            //    Ast = x
+            //}).ToList();
+
+            //foreach (var compount in compounts)
+            //{
+            //    var illegalStatement = compount.Ast.TraverseParents().FirstOrDefault(x => forbidden.Contains(x.name));
+
+            //    var addition = illegalStatement != null ? $"- Illegal statement found: {illegalStatement.name}" : string.Empty;
+            //    Console.WriteLine($"\t{compount.Name} - {compount.Type} {addition}");
+
+            //    if (addition != string.Empty)
+            //    {
+            //        //foreach (var cAst in compount.Ast.TraverseParents())
+            //        //{
+            //        //    try
+            //        //    {
+            //        //        Console.WriteLine();
+            //        //    }
+            //        //    catch (Exception e)
+            //        //    {
+            //        //    }
+            //        //}
+
+            //        Console.WriteLine();
+            //        Debugger.Break();
+            //    }
+            //}
         }
-        protected static FunctionProtoDeclaration GetFunctionProtoDeclaration(AstToken token)
+
+        private static void DebugNodes(IEnumerable<AstToken> parents)
         {
-            var function = new FunctionProtoDeclaration()
+            foreach (var par in parents)
             {
-                returnType = GetTypeDeclaration(token.children[0])
-            };
-            for (int i = 1; i < token.children.Count; i++)
-            {
-                function.parameters.Add(GetTypeDeclaration(token.children[i]));
+                try
+                {
+                    var json = par.SerializeFriendly();
+                    var translated = AstTranslator.GetFunctionBody(par);
+                    // Debugger.Break();
+                }
+                catch (Exception e)
+                {
+                }
             }
-            return function;
         }
 
-        //protected static string GetValue(AstToken token)
-        //{
-        //    switch (token.name)
-        //    {
-        //        case "InitListExpr":
-        //            System.Text.StringBuilder builder = new System.Text.StringBuilder();
-        //            builder.Append("[");
-        //            for (int i = 0; i < token.children.Count; i++)
-        //            {
-        //                if (i != 0) builder.Append(",");
-        //                builder.Append(GetValue(token.children[i]));
-        //            }
-        //            builder.Append("]");
-        //            return builder.ToString();
+        private static IEnumerable<AstToken> GetUsages(DeclRefExprProperties saidMsg, AstToken methodDecl)
+        {
+            return methodDecl.VisitEnumerable
+            (
+                x => x.name == "DeclRefExpr" && new DeclRefExprProperties(x).Equals(saidMsg)
+            );
+        }
 
-        //        case "ImplicitCastExpr":
-        //            if (token.children.Count > 1) throw new InvalidCastException();
-        //            return GetValue(token.children[0]);
-        //        case "CXXBoolLiteralExpr":
-        //            return token.properties[1];     // property 0 is 'bool'
-        //        case "IntegerLiteral":
-        //            return token.properties[1];     // property 0 is 'int'; if this one have context - this may be define
-        //        case "GNUNullExpr": 
-        //            return "null";
-        //        case "StringLiteral":
-        //            return token.properties[2];     // property 0 is 'char[...]', property 1 is 'lvalue'
-        //        case "CStyleCastExpr":
-        //            if (token.children.Count > 1) throw new InvalidCastException();
-        //            return GetValue(token.children[0]);     // here probably need append cast prefix
-        //        case "DeclRefExpr":
-        //            return token.properties[3];     // here need check for pointer to declaration
-        //        case "UnaryOperator":
-        //            var operation = token.properties[1];
-        //            if (operation == "prefix") return token.properties[token.properties.Length - 1] + GetValue(token.children[0]);
-        //            else if (operation == "postfix") return GetValue(token.children[0]) + token.properties[token.properties.Length - 1];
-        //            else throw new Exception(operation);
-        //        case "BinaryOperator":
-        //            return GetValue(token.children[0]) + token.properties[token.properties.Length - 1] + GetValue(token.children[1]);
-        //        case "ParenExpr":
-        //            return "(" + GetValue(token.children[0]) + ")";
-        //        default: throw new Exception(token.name);
+        private static IEnumerable<DeclRefExprProperties> GetVariableThatGetsSaid(AstToken methodDecl)
+        {
+            var memberExpressions = methodDecl.VisitEnumerable
+            (
+                x => x.name == "MemberExpr" && x.parent.name == "CXXMemberCallExpr" && x.properties.Contains("->Say")
+            );
+
+            foreach (var memberExpression in memberExpressions)
+            {
+                var otherchildren = memberExpression.parent
+                    .VisitEnumerable(x => x != memberExpression)
+                    .Where(x => x.name == "DeclRefExpr")
+                    .Select(x => new DeclRefExprProperties(x))
+                    .ToList()
+                    ;
+
+                //Just take the last one
+
+                if (otherchildren.Count == 1)
+                {
+                    yield return otherchildren.FirstOrDefault();
+                }
+                else
+                {
+                    //Multiple (path: pSession->Say( &vMSG ))
+
+                    yield return otherchildren.FirstOrDefault(x => x.Token.properties[0] == "CPacket");
+                }
+
+                //if (otherchildren.Count > 1)
+                //{
+                //    throw new NotSupportedException("Multiple decls are not supported");
+                //}
+
+                //if (otherchildren.Count == 1)
+                //{
+                //}
+            }
+        }
+
+        private static void ProcessSetInstruction(AstToken methodDecl)
+        {
+            var setId = methodDecl.VisitEnumerable(x => x.name == "MemberExpr" && x.properties.Contains(".SetID")).FirstOrDefault();
+
+            if (setId != null)
+            {
+                var literals = setId.parent.VisitEnumerable(x => x.name == "BinaryOperator");
+                foreach (var literal in literals)
+                {
+                    var exp = literal.AsExpression();
+                    Console.WriteLine($"Set: {exp}");
+                }
+            }
+        }
+
+        //private static void Visit(AstToken token, Func<AstToken, bool> predicate, Action<AstToken> onFound)
+        //{
+        //    foreach (var tokenChild in token.children)
+        //    {
+        //        if (predicate(tokenChild))
+        //        {
+        //            onFound(tokenChild);
+        //        }
+        //        Visit(tokenChild, predicate, onFound);
         //    }
         //}
 
-        protected static VariableDeclaration GetVariableDeclaration(AstToken token)
-        {
-            var variable = new VariableDeclaration()
-            {
-                name = token.properties[0],
-                type = token.properties[1],
-            };
-
-            if (token.attributes.Contains("cinit"))
-            {
-                variable.value = GetFunctionBody(token.children[0]);
-            }
-
-            if (token.attributes.Contains("static"))
-            {
-                variable.isStatic = true;
-            }
-
-            if (token.attributes.Contains("extern"))
-            {
-                variable.isExtern = true;
-            }
-
-            for (int i = 2; i < token.properties.Length; i++)
-            {
-                switch (token.properties[i])
-                {
-                    default: throw new Exception(token.properties[i]);
-                }
-            }
-
-            return variable;
-        }
-
-        protected static string GetFunctionBody(AstToken token)
-        {
-            string reference;
-            System.Text.StringBuilder stringBuilder;
-            switch (token.name)
-            {
-                case "CompoundStmt":
-                    stringBuilder = new System.Text.StringBuilder();
-                    stringBuilder.AppendLine("{");
-                    foreach (var childToken in token.children)
-                        stringBuilder.AppendLine(GetFunctionBody(childToken));
-                    stringBuilder.AppendLine("}");
-                    return stringBuilder.ToString();
-                case "ReturnStmt":
-                    if(token.children.Count > 1) throw new ArgumentException();
-                    if (token.children.Count == 0) return "return;";
-                    return "return " + GetFunctionBody(token.children[0]) + ";";
-                case "ConditionalOperator":
-                    if (token.children.Count != 3) throw new ArgumentException();
-                    return GetFunctionBody(token.children[0]) + "?" + GetFunctionBody(token.children[1]) + ":" + GetFunctionBody(token.children[2]);
-                case "ParenExpr":
-                    if (token.children.Count != 1) throw new ArgumentException();
-                    return "(" + GetFunctionBody(token.children[0]) + ")";
-                case "BinaryOperator":
-                    return GetFunctionBody(token.children[0]) + token.properties[token.properties.Length - 1] + GetFunctionBody(token.children[1]);
-                case "UnaryOperator":
-                    if (token.children.Count != 1) throw new ArgumentException();
-                    var operation = token.properties[1];
-                    if (operation == "lvalue") operation = token.properties[2];
-                    if (operation == "prefix") return token.properties[token.properties.Length - 1] + GetFunctionBody(token.children[0]);
-                    else if (operation == "postfix") return GetFunctionBody(token.children[0]) + token.properties[token.properties.Length - 1];
-                    else throw new ArgumentException();
-                case "ImplicitCastExpr":
-                    if (token.children.Count != 1) throw new ArgumentException();
-                    return GetFunctionBody(token.children[0]);
-                case "DeclRefExpr": // variable
-                    reference = token.properties[1];
-                    if (reference == "lvalue")
-                        return token.properties[4]; // remove quotes
-                    return token.properties[3];     // remove quotes
-
-                case "InitListExpr":
-                    stringBuilder = new System.Text.StringBuilder();
-                    stringBuilder.Append("[");
-                    for (int i = 0; i < token.children.Count; i++)
-                    {
-                        if (i != 0) stringBuilder.Append(",");
-                        stringBuilder.Append(GetFunctionBody(token.children[i]));
-                    }
-                    stringBuilder.Append("]");
-                    return stringBuilder.ToString();
-
-                case "IntegerLiteral":
-                    return token.properties[1];     // property 0 is 'int'; if this one have context - this may be define
-                case "CharacterLiteral":
-                    return token.properties[1];      // property 0 is 'char'
-                case "FloatingLiteral":
-                    return token.properties[1];      // property 0 is 'float/double'
-                case "StringLiteral":
-                    reference = token.properties[1];     // property 0 is 'char[...]'
-                    if (reference == "lvalue")
-                        return token.properties[2];
-                    return token.properties[1];
-                case "CXXBoolLiteralExpr":
-                    return token.properties[1];     // property 0 is 'bool'
-                case "CStyleCastExpr":
-                    if (token.children.Count != 1) throw new ArgumentException();
-                    return GetFunctionBody(token.children[0]);  // maybe need cast with parameter[0]
-                case "MemberExpr":
-                    if (token.children.Count != 1) throw new ArgumentException();
-                    reference = token.properties[1];
-                    if (reference == "lvalue")
-                        return GetFunctionBody(token.children[0]) + token.properties[2];
-                    return GetFunctionBody(token.children[0]) + token.properties[1];
-                case "CallExpr":
-                    if (token.children.Count== 0) throw new ArgumentException();
-                    stringBuilder = new System.Text.StringBuilder();
-                    stringBuilder.Append(GetFunctionBody(token.children[0]));
-                    stringBuilder.Append("(");
-                    for (int i = 1; i < token.children.Count; i++)
-                    {
-                        if (token.children[i].name == "CXXDefaultArgExpr") break;
-                        if (i > 1) stringBuilder.Append(",");
-                        stringBuilder.Append(GetFunctionBody(token.children[i]));
-                    }
-                    stringBuilder.Append(")");
-                    return stringBuilder.ToString();
-                case "ArraySubscriptExpr":
-                    if (token.children.Count != 2) throw new ArgumentException();
-                    return GetFunctionBody(token.children[0]) + "["+ GetFunctionBody(token.children[1]) + "]";
-
-                case "DeclStmt":
-                    stringBuilder = new System.Text.StringBuilder();
-                    foreach (var childToken in token.children)
-                        stringBuilder.AppendLine(GetFunctionBody(childToken));
-                    return stringBuilder.ToString();
-
-                case "VarDecl":
-                    if (token.properties.Length != 2) throw new ArgumentException();
-                    stringBuilder = new System.Text.StringBuilder();
-                    stringBuilder.Append(token.properties[1]);
-                    stringBuilder.Append(" ");
-                    stringBuilder.Append(token.properties[0]);
-                    if (token.attributes.Contains("cinit"))
-                    {
-                        if (token.children.Count != 1)
-                        {
-                            token.children = token.children.Where((tok, index) => tok.name != "FullComment").ToList();
-                            if (token.children.Count != 1)
-                                throw new ArgumentException();
-                        }
-                        stringBuilder.Append(" = ");
-                        stringBuilder.Append(GetFunctionBody(token.children[0]));
-                    }
-                    return stringBuilder.ToString()+";";
-
-                case "WhileStmt":
-                    if (token.children.Count != 3) throw new ArgumentException();
-                    return "while(" + GetFunctionBody(token.children[1]) + ")\n" + GetFunctionBody(token.children[2]);
-
-                case "DoStmt":
-                    if (token.children.Count != 2) throw new ArgumentException();
-                    return "do" + GetFunctionBody(token.children[0]) + "\nwhile(" + GetFunctionBody(token.children[1]) + ");";
-
-                case "IfStmt":
-                    if (token.children.Count != 5) throw new ArgumentException();
-                    return "if(" + GetFunctionBody(token.children[2]) + ")\n" + GetFunctionBody(token.children[3]);
-
-                case "ForStmt":
-                    if (token.children.Count != 5) throw new ArgumentException();
-                    return "for(" + GetFunctionBody(token.children[0]) + ";" + GetFunctionBody(token.children[2]) + ";" + GetFunctionBody(token.children[3]) + ")\n" + GetFunctionBody(token.children[4]);
-
-                case "GNUNullExpr": return "null";
-                case "NullStmt": return ";";
-
-                case "CompoundAssignOperator":
-                    if (token.children.Count != 2) throw new ArgumentException();
-                    reference = token.properties[1];
-                    if (reference == "lvalue")
-                        return GetFunctionBody(token.children[0]) + token.properties[2] + GetFunctionBody(token.children[1]);
-                    return GetFunctionBody(token.children[0]) + token.properties[1] + GetFunctionBody(token.children[1]);
-
-                case "UnaryExprOrTypeTraitExpr":
-                    if (token.properties.Length == 3)
-                        return token.properties[1] + "(" + token.properties[2] + ")";
-                    if (token.children.Count != 1) throw new ArgumentException();
-                    return token.properties[1] + GetFunctionBody(token.children[0]);
-
-                case "BreakStmt": return "break;";
-                case "ContinueStmt": return "continue;";
-                case "GotoStmt": return "goto " + token.properties[0] + ";";
-                case "LabelStmt":
-                    stringBuilder = new System.Text.StringBuilder();
-                    stringBuilder.Append(token.properties[0]);
-                    stringBuilder.AppendLine(":");
-                    foreach (var childToken in token.children)
-                        stringBuilder.AppendLine(GetFunctionBody(childToken));
-                    return stringBuilder.ToString();
-
-                case "ExprWithCleanups":            // i not sure about this one
-                    if (token.children.Count != 1) throw new ArgumentException();
-                    return GetFunctionBody(token.children[0]);
-
-                case "CXXConstructExpr":            // i not sure about this one
-                    if (token.children.Count != 1) throw new ArgumentException();
-                    return GetFunctionBody(token.children[0]);
-
-                case "MaterializeTemporaryExpr":    // i not sure about this one
-                    if (token.children.Count != 1) throw new ArgumentException();
-                    return GetFunctionBody(token.children[0]);
-
-                case "CXXMemberCallExpr":           // i not sure about this one
-                    stringBuilder = new System.Text.StringBuilder();
-                    stringBuilder.Append(GetFunctionBody(token.children[0]));
-                    stringBuilder.Append("(");
-                    for (int i = 1; i < token.children.Count; i++)
-                    {
-                        //if (token.children[i].name == "CXXDefaultArgExpr") break;
-                        if (i > 1) stringBuilder.Append(",");
-                        stringBuilder.Append(GetFunctionBody(token.children[i]));
-                    }
-                    stringBuilder.Append(")");
-                    return stringBuilder.ToString();
-
-                case "CXXOperatorCallExpr":           // i not sure about this one
-                    if (token.children.Count == 3)
-                        return GetFunctionBody(token.children[1]) + GetFunctionBody(token.children[0]) + GetFunctionBody(token.children[2]);
-                    else if (token.children.Count == 2)
-                        return GetFunctionBody(token.children[1]) + GetFunctionBody(token.children[0]);
-                    else throw new ArgumentException();
-
-                case "ImplicitValueInitExpr":   // don't know what to do
-                    if (token.children.Count != 0)
-                        throw new ArgumentException();
-                    return "";
-
-                case "SwitchStmt":
-                    if (token.children.Count != 4) throw new ArgumentException();
-                    stringBuilder = new System.Text.StringBuilder();
-                    stringBuilder.Append("switch(");
-                    stringBuilder.Append(GetFunctionBody(token.children[2]));
-                    stringBuilder.Append(")");
-                    stringBuilder.Append(GetFunctionBody(token.children[3]));
-                    return stringBuilder.ToString();
-
-                case "CaseStmt":
-                    if (token.children.Count != 3) throw new ArgumentException();
-                    stringBuilder = new System.Text.StringBuilder();
-                    stringBuilder.Append("case:");
-                    stringBuilder.AppendLine(GetFunctionBody(token.children[0]));
-                    stringBuilder.Append(GetFunctionBody(token.children[2]));
-                    return stringBuilder.ToString();
-
-                case "DefaultStmt":
-                    stringBuilder = new System.Text.StringBuilder();
-                    for (int i = 0; i < token.children.Count; i++)
-                        stringBuilder.Append(GetFunctionBody(token.children[i]));
-                    return stringBuilder.ToString();
-
-                case "array": return ""; // no idea what to do...
-                case "CXXStaticCastExpr":
-                    if (token.children.Count != 1) throw new ArgumentException();
-                    return GetFunctionBody(token.children[0]);
-                case "CXXFunctionalCastExpr":   // i not sure it works right
-                    return "("+token.properties[0]+")";
-                case "PredefinedExpr":     // i not sure it works right
-                    operation = token.properties[1];
-                    if (operation == "lvalue") operation = token.properties[2];
-                    return operation;
-                case "<<<NULL>>>":
-                    return "";
-
-                case "GCCAsmStmt":
-                    stringBuilder = new System.Text.StringBuilder();
-                    for (int i = 0; i < token.children.Count; i++)
-                        stringBuilder.Append(GetFunctionBody(token.children[i]));
-                    return stringBuilder.ToString();
-
-                case "VAArgExpr":   // i not sure it right
-                    return "...args";
-
-                default: throw new Exception(token.name);
-                //default: return "Unknown";
-            }
-        }
-
-        protected static FunctionDeclaration GetFunctionDeclaration(AstToken token)
-        {
-            var function = new FunctionDeclaration()
-            {
-                name = token.properties[0],
-            };
-
-            foreach (var childToken in token.children)
-            {
-                switch (childToken.name)
-                {
-                    case "ParmVarDecl":
-                        FunctionDeclaration.Parameter parameter = null;
-                        if (childToken.properties.Length == 1)
-                        {
-                            parameter = new FunctionDeclaration.Parameter()
-                            {
-                                name = null,
-                                type = childToken.properties[0],
-                            };
-                        }
-                        else if (childToken.properties.Length == 2)
-                        {
-                            parameter = new FunctionDeclaration.Parameter()
-                            {
-                                name = childToken.properties[0],
-                                type = childToken.properties[1],
-                            };
-                        }
-                        if (childToken.attributes.Contains("cinit"))
-                        {
-                            parameter.value = GetFunctionBody(childToken.children[0]);
-                        }
-
-                        function.parameters.Add(parameter);
-                        break;
-                    case "CompoundStmt":
-                        function.body = GetFunctionBody(childToken);
-                        break;
-                    case "FullComment": break; // ignore
-                    default: throw new Exception(childToken.name);
-                }
-            }
-
-            return function;
-        }
-
-        protected static StructureDeclaration GetStructDeclaration(AstToken token) 
-        {
-            StructureDeclaration structure = new StructureDeclaration();
-
-            if (token.properties[0] == "union") structure.isUnion = true;
-            else if (token.properties[0] == "class") structure.isClass = true;
-            else if (token.properties[0] != "struct")  throw new ArgumentException();
-
-            if (token.properties.Length > 1)
-                structure.name = token.properties[1];
-
-            foreach (var childToken in token.children)
-            {
-                switch (childToken.name)
-                {
-                    case "DefinitionData": // almost no idea how to parse it // TODO
-                        break; 
-                    case "CXXRecordDecl":
-                        structure.subStructures.Add(GetStructDeclaration(childToken));
-                        break;
-                    case "FieldDecl":
-                        structure.properties.Add(new StructureDeclaration.Property() {
-                            name = childToken.properties[0],
-                            type = childToken.properties[1]
-                        });
-                        break;
-                    case "public":  // TODO
-                        break;
-                    case "FullComment": // ignore this. or TODO if you wish
-                        break;
-                    case "AccessSpecDecl": // TODO local modificator based on properties[0]
-                        break;
-                    case "CXXConstructorDecl":  // TODO
-                        break;
-                    case "CXXDestructorDecl":  // TODO
-                        break;
-                    case "CXXMethodDecl":  // TODO
-                        structure.others.Add(childToken.properties[0] + " " + childToken.properties[1]);
-                        break;
-                    default: throw new Exception(childToken.name);
-                }
-            }
-
-            return structure;
-        }
-
-        protected static void ProcessTypedef(AstToken token)
-        {
-            var targetClass = GetTranslatedTargetClass(token.context.sourceFile);
-            var targetFileName = GetTranslatedTargetFile(token.context.sourceFile);
-            var translationFile = GetTranslation(targetClass);
-
-            var aliasType = GetTypeDeclaration(token.children[0]);
-            translationFile.typedef.Add(token.offset, new TypedefDeclaration()
-            {
-                name = token.properties[0],
-                alias = aliasType
-            });
-        }
-        protected static void ProcessVariableDeclaration(AstToken token)
-        {
-            var targetClass = GetTranslatedTargetClass(token.context.sourceFile);
-            var targetFileName = GetTranslatedTargetFile(token.context.sourceFile);
-            var translationFile = GetTranslation(targetClass);
-
-            var variable = GetVariableDeclaration(token);
-            translationFile.variables.Add(token.offset, variable);
-
-            //if (variable.value != null)
-            //{
-            //    Console.WriteLine(variable.name + " = " + variable.value);
-            //}
-        }
-        protected static void ProcessEnum(AstToken token)
-        {
-            var targetClass = GetTranslatedTargetClass(token.context.sourceFile);
-            var targetFileName = GetTranslatedTargetFile(token.context.sourceFile);
-            var translationFile = GetTranslation(targetClass);
-
-            EnumDeclaration enumDeclaration = new EnumDeclaration() { name = token.properties.Length > 0 ? token.properties[0] : "[UnnamedEnum]" };
-
-            foreach (var childToken in token.children)
-            {
-                switch (childToken.name)
-                {
-                    case "EnumConstantDecl":
-                        var enumConstant = new EnumDeclaration.Property(){name = childToken.properties[0]};
-                        if (childToken.children.Count > 0)
-                        {
-                            foreach (var subChildToken in childToken.children)
-                            {
-                                enumConstant.value = GetFunctionBody(subChildToken);
-                            }
-                        }
-                        enumDeclaration.properties.Add(enumConstant);
-                        break;
-                    case "FullComment": break;
-                    default: throw new Exception(childToken.name);
-                }
-            }
-
-            translationFile.enums.Add(token.offset, enumDeclaration);
-        }
-        protected static void ProcessFunctionDeclaration(AstToken token)
-        {
-            var targetClass = GetTranslatedTargetClass(token.context.sourceFile);
-            var targetFileName = GetTranslatedTargetFile(token.context.sourceFile);
-            var translationFile = GetTranslation(targetClass);
-
-            var function = GetFunctionDeclaration(token);
-            translationFile.functions.Add(token.offset, function);
-
-            //Console.Write(function.name + "(");
-            //foreach (var param in function.parameters)
-            //{
-            //    Console.Write(param.type+" ");
-            //    if (param.name != null)
-            //        Console.Write(param.name + " ");
-            //    if (param.value != null)
-            //        Console.Write("= "+param.value);
-            //    Console.Write(", ");
-            //}
-            //Console.WriteLine(")");
-        }
-        protected static void ProcessStructDeclaration(AstToken token)
-        {
-            var targetClass = GetTranslatedTargetClass(token.context.sourceFile);
-            var targetFileName = GetTranslatedTargetFile(token.context.sourceFile);
-            var translationFile = GetTranslation(targetClass);
-
-            var structure = GetStructDeclaration(token);
-            translationFile.structures.Add(token.offset, structure);
-        }
+        //private static IEnumerable<AstToken> VisitEnumerable(AstToken token, Func<AstToken, bool> predicate)
+        //{
+        //    foreach (var tokenChild in token.children)
+        //    {
+        //        if (predicate(tokenChild))
+        //        {
+        //            yield return tokenChild;
+        //        }
+        //        var results = VisitEnumerable(tokenChild, predicate);
+        //        foreach (var astToken in results)
+        //        {
+        //            yield return astToken;
+        //        }
+        //    }
+        //}
     }
 }
