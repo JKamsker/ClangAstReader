@@ -6,6 +6,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ClangReader.Utilities;
 
 namespace ClangReader.Ast
 {
@@ -32,7 +33,9 @@ namespace ClangReader.Ast
 
         public async IAsyncEnumerable<AstLineResult> ReadHierarchyAsync(CancellationToken token)
         {
-
+            var lst = new ListEx<char>();
+  
+            
 
             var pool = MemoryPool<char>.Shared;
             using var memoryOwner = pool.Rent(10 * 1024 * 1024);

@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+
 using ClangReader.Ast;
 using ClangReader.LanguageTranslation;
 using ClangReader.Models;
@@ -29,11 +30,20 @@ namespace ClangReader
 
         public static async Task Main(string[] args)
         {
+            var list = new ListEx<string>();
+
+            list.Add("SUPER SECRET");
+
+            list.AsReadOnly();
+
+            var buffer = list.GetUnderlyingBuffer();
+
+            var ax = System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences<char>();
+
             var path = @"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast";
 
             var i = 0;
             //var enu = File.ReadAllLines(path);
-
 
             var reader = new AstFileReader(path);
 
