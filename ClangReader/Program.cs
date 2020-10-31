@@ -5,6 +5,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -24,45 +26,161 @@ using Newtonsoft.Json;
 
 namespace ClangReader
 {
+    public class TestAcc
+    {
+        public TestAcc()
+        {
+            items = new[] { "superSecret" };
+        }
+
+        public string[] items;
+        public int size;
+        public TestAcc child;
+    }
+
     internal class MainClass
     {
         //public static Dictionary<string, TranslationFile> translation = new Dictionary<string, TranslationFile>();
 
-        public static async Task Main(string[] args)
+        public static void Setter(TestAcc acc, int size)
         {
-            var list = new ListEx<string>();
+            // // [45 13 - 45 29]
+            //IL_0001: ldarg.0      // acc
+            //IL_0002: ldarg.1      // size
+            //IL_0003: stfld int32 ClangReader.TestAcc::size
 
-            list.Add("SUPER SECRET");
+            //// [46 9 - 46 10]
+            //            IL_0008: ret
+            acc.size = size;
+        }
 
-            list.AsReadOnly();
+        public static void Setter(TestAcc acc, TestAcc child)
+        {
+            //// [58 9 - 58 10]
+            //IL_0000: nop
 
-            var buffer = list.GetUnderlyingBuffer();
+            //// [60 13 - 60 31]
+            //IL_0001: ldarg.0      // acc
+            //IL_0002: ldarg.1      // child
+            //IL_0003: stfld        class ClangReader.TestAcc ClangReader.TestAcc::child
 
-            var ax = System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences<char>();
+            //// [61 9 - 61 10]
+            //IL_0008: ret
 
-            var path = @"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast";
+            acc.child = child;
+        }
 
-            var i = 0;
-            //var enu = File.ReadAllLines(path);
+        public static TestAcc Getter(TestAcc acc)
+        {
+            //IL_0000: ldarg.0      // acc
+            //IL_0001: ldfld        class ClangReader.TestAcc ClangReader.TestAcc::child
+            //IL_0006: ret
 
-            var reader = new AstFileReader(path);
+            return acc.child;
+        }
 
-            await foreach (var line in reader.ReadHierarchyAsync(CancellationToken.None))
+        private static Action<TClassType, TFieldType> Generator<TClassType, TFieldType>(FieldInfo field)
+        {
+            DynamicMethod dm = new DynamicMethod(String.Concat("_Set", field.Name, "_"), typeof(void),
+                new Type[] { typeof(TClassType), typeof(TFieldType) },
+                field.DeclaringType, true);
+            ILGenerator generator = dm.GetILGenerator();
+
+            generator.Emit(OpCodes.Ldarg_0);
+            generator.Emit(OpCodes.Ldarg_1);
+
+            //if (field.FieldType.IsValueType)
+            //{
+            //    generator.Emit(OpCodes.Unbox_Any, field.FieldType);
+            //}
+
+            generator.Emit(OpCodes.Stfld, field);
+            generator.Emit(OpCodes.Ret);
+
+            return (Action<TClassType, TFieldType>)dm.CreateDelegate(typeof(Action<TClassType, TFieldType>));
+        }
+
+        private static void TestLine()
+        {
+            var line = "|||C:\\Users\\We--irdo\\source\\repos\\4Story\\Agnares\\4Sto";
+            
+            var lineDepth = 0;
+            var tokenStart = -1;
+            var tokenEnd = -1;
+
+            for (var i = 0; i < line.Length; i += 2)
             {
-                //var current = line.StringBuilder.ToString();
-                //var reference = enu[i];
+                if (line[i] == '|' || line[i] == '`' || line[i] == ' ' || line[i] == '-')
+                {
+                    lineDepth++;
+                    continue;
+                }
 
-                //if (current != reference)
-                //{
-                //    Debugger.Break();
-                //}
-                //102761
-
-                i++;
-
-                //Console.WriteLine(line.StringBuilder.ToString());
+                tokenStart = i;
+                break;
             }
 
+        }
+
+
+        public static async Task Main(string[] args)
+        {
+            DoAstProcessing();
+           // TestLine();
+
+            //var path = @"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast";
+
+            //for (int i = 0; i < 5; i++)
+            //{
+            //    var j = 0;
+            //    var sw = Stopwatch.StartNew();
+            //    foreach (var line in File.ReadLines(path))
+            //    {
+            //        j++;
+            //    }
+            //    GC.Collect(3, GCCollectionMode.Forced);
+            //    sw.Stop();
+            //    Console.WriteLine($"{sw.Elapsed.TotalMilliseconds}\t\t{j}");
+            //}
+
+            //Console.WriteLine();
+            //for (int i = 0; i < 5; i++)
+            //{
+            //    var j = 0;
+            //    var sw = Stopwatch.StartNew();
+            //    var reader = new FastLineReader(path);
+            //    foreach (var line in reader.ReadLine())
+            //    {
+            //        j++;
+            //    }
+            //    GC.Collect(3, GCCollectionMode.Forced);
+
+            //    sw.Stop();
+            //    Console.WriteLine($"{sw.Elapsed.TotalMilliseconds}\t\t{j}");
+            //}
+
+            //for (int i = 0; i < 5; i++)
+            //{
+            //    var j = 0;
+            //    var sw = Stopwatch.StartNew();
+
+            //    using var sr = new StreamReader(path);
+            //    while (true)
+            //    {
+            //        var line = await sr.ReadLineAsync();
+            //        if (string.IsNullOrEmpty(line))
+            //        {
+            //            break;
+            //        }
+            //        j++;
+            //    }
+
+            //    sw.Stop();
+            //    Console.WriteLine($"{sw.Elapsed.TotalMilliseconds}\t\t{j}");
+            //}
+
+            Console.ReadLine();
+            return;
             await PerfTestMultiThreaded();
         }
 

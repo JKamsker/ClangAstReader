@@ -5,6 +5,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
+using ClangReader.Utilities;
+
 using Microsoft.Extensions.Primitives;
 
 namespace ClangReader
@@ -97,7 +99,7 @@ namespace ClangReader
             var lines = File.ReadLines(astDumpPath);
 
             rootTokens = new List<AstToken>();
-            var currentTokens = new List<AstToken>();
+            var currentTokens = new ListEx<AstToken>();
 
             var contextFilename = new AstTokenContext() { sourceFile = "<invalid sloc>", column = 0, line = 0 };
             foreach (var line in lines)
@@ -146,6 +148,16 @@ namespace ClangReader
                 }
                 else
                 {
+                    //if (currentTokens.Count > lineDepth + 1)
+                    //{
+                    //    var bigger = currentTokens.Span.Slice(lineDepth + 1);
+                    //    if (!bigger.IsEmpty)
+                    //    {
+                    //        bigger.Clear();
+                    //        currentTokens.Count -= bigger.Length;
+                    //    }
+                    //}
+
                     if (lineDepth >= currentTokens.Count)
                     {
                         currentTokens.Add(astToken);
@@ -155,8 +167,10 @@ namespace ClangReader
                         currentTokens[lineDepth] = astToken;
                     }
 
-                    currentTokens[lineDepth - 1].children.Add(astToken);
-                    astToken.parent = currentTokens[lineDepth - 1];
+                    var parent = currentTokens[lineDepth - 1];
+
+                    parent.children.Add(astToken);
+                    astToken.parent = parent;
                 }
             }
         }

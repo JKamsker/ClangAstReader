@@ -59,7 +59,5 @@ namespace ClangReader
                 yield return list;
             }
         }
-
-
     }
 }
