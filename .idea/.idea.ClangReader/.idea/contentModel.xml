@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ContentModelStore">
+    <e p="C:\Users\Weirdo\AppData\Local\JetBrains\Rider2020.2\extResources" t="IncludeRecursive" />
+    <e p="C:\Users\Weirdo\AppData\Local\JetBrains\Rider2020.2\resharper-host\Local\Transient\Rider\v202\SolutionCaches\_ClangReader.924331164.00" t="ExcludeRecursive" />
+    <e p="C:\Users\Weirdo\source\repos\external\ClangAstReader" t="IncludeFlat">
+      <e p="ClangReader" t="IncludeRecursive">
+        <e p="app.config" t="Include" />
+        <e p="AstTextFile.cs" t="Include" />
+        <e p="bin" t="ExcludeRecursive" />
+        <e p="ClangReader.csproj" t="IncludeRecursive" />
+        <e p="ClangReader.csproj.old" t="Include" />
+        <e p="LanguageTranslation" t="Include">
+          <e p="AstTranslator.cs" t="Include" />
+          <e p="TranslationFile.cs" t="Include" />
+        </e>
+        <e p="Models" t="Include">
+          <e p="DeclRefExprProperties.cs" t="Include" />
+          <e p="ReadOnlyArraySegment.cs" t="Include" />
+        </e>
+        <e p="obj" t="ExcludeRecursive">
+          <e p="Debug" t="Include">
+            <e p="netcoreapp3.1" t="Include">
+              <e p="ClangReader.AssemblyInfo.cs" t="Include" />
+            </e>
+          </e>
+        </e>
+        <e p="packages.config" t="Include" />
+        <e p="Program.cs" t="Include" />
+        <e p="Properties" t="Include" />
+        <e p="RestoredSource.cs" t="Include" />
+        <e p="Utilities" t="Include">
+          <e p="AstExtension.cs" t="Include" />
+          <e p="Extensions.cs" t="Include" />
+          <e p="StringSplitEngine.cs" t="Include" />
+        </e>
+      </e>
+      <e p="ClangReader.sln" t="IncludeFlat" />
+      <e p="packages" t="ExcludeRecursive" />
+    </e>
+  </component>
+</project>

@@ -1,14 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Text;
 using System.Text.RegularExpressions;
-
+using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
+using ClangReader.Ast;
 using ClangReader.LanguageTranslation;
 using ClangReader.Models;
+using ClangReader.Tests;
 using ClangReader.Types;
 using ClangReader.Utilities;
+
+using Microsoft.Extensions.Primitives;
 
 using Newtonsoft.Json;
 
@@ -18,25 +27,205 @@ namespace ClangReader
     {
         //public static Dictionary<string, TranslationFile> translation = new Dictionary<string, TranslationFile>();
 
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
-            //var engine = new StringSplitEngine
-            //(
-            //    new EnclosureOptions('\''),
-            //    new EnclosureOptions('"'),
-            //    new EnclosureOptions('<', '>')
-            //);
+            var path = @"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast";
 
-            //var result = engine.Split("'OI BOY' Boy Oi <start ay ay <level oi d > end > this should be extra <start but no< end >");
+            var i = 0;
+            //var enu = File.ReadAllLines(path);
 
-            string input = "one \"two two\" three \"four four\" five six";
-            var parts = Regex.Matches(input, @"[\""].+?[\""]|[^ ]+")
-                .Cast<Match>()
-                .Select(m => m.Value)
-                .ToList();
 
-            //var splitArray = Regex.Split(subjectString, "(?<=^[^\"]*(?:\"[^\"]*\"[^\"]*)*) (?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+            var reader = new AstFileReader(path);
 
+            await foreach (var line in reader.ReadHierarchyAsync(CancellationToken.None))
+            {
+                //var current = line.StringBuilder.ToString();
+                //var reference = enu[i];
+
+                //if (current != reference)
+                //{
+                //    Debugger.Break();
+                //}
+                //102761
+
+                i++;
+
+                //Console.WriteLine(line.StringBuilder.ToString());
+            }
+
+            await PerfTestMultiThreaded();
+        }
+
+        private static void Splitfancy(bool skipEmpty = true)
+        {
+            var stringBuilder = new List<string>();
+            var aspan = "as,da-sd,,f".AsSpan();
+
+            var tempspan = aspan.Slice(0);
+            while (tempspan.Length != 0)
+            {
+                var index = tempspan.IndexOfAny(',', '-');
+                if (index == -1)
+                {
+                    stringBuilder.Add(tempspan.ToString());
+                    tempspan = ReadOnlySpan<char>.Empty;
+                    // Console.WriteLine(stringBuilder.ToString());
+                    break;
+                }
+
+                if (index > 0 || (index == 0 && !skipEmpty))
+                {
+                    var window = tempspan[0..index];
+                    stringBuilder.Add(window.ToString());
+                }
+
+                tempspan = tempspan[++index..];
+            }
+            Debugger.Break();
+        }
+
+        private static void PerfTestSingleThread()
+        {
+            var engine = new StringSplitEngine
+            (
+                new EnclosureOptions('\''),
+                new EnclosureOptions('"'),
+                new EnclosureOptions('<', '>')
+            );
+
+            var sw3 = Stopwatch.StartNew();
+
+            long donotOptimize = 0;
+            foreach (var line in File.ReadLines(@"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast"))
+            {
+                var a = engine.SplitSegmented(line);
+                donotOptimize += (int)a.FirstOrDefault().Length;
+            }
+            GC.Collect(3, GCCollectionMode.Forced);
+            sw3.Stop();
+            Console.WriteLine($"Singlethreaded Completed in {sw3.Elapsed.TotalMilliseconds}");
+
+            Console.ReadLine();
+        }
+
+        private static bool running;
+        private static Channel<IEnumerable<string>> inputChannel;
+
+        private static async Task PerfTestMultiThreaded()
+        {
+            while (true)
+            {
+                running = true;
+                var workers = new List<Task>();
+
+                inputChannel = Channel.CreateBounded<IEnumerable<string>>(new BoundedChannelOptions(10 * 1024)
+                {
+                    SingleWriter = true,
+                    SingleReader = false,
+                    AllowSynchronousContinuations = false,
+                });
+
+                for (int i = 0; i < Environment.ProcessorCount; i++)
+                {
+                    workers.Add(Task.Factory.StartNew(async () => await DoWork()));
+                }
+
+                var sw = Stopwatch.StartNew();
+                foreach (var lines in File.ReadLines(@"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast").ChunkIn(512))
+                {
+                    await inputChannel.Writer.WriteAsync(lines);
+                }
+
+                inputChannel.Writer.Complete();
+                running = false;
+
+                await Task.WhenAll(workers);
+
+                sw.Stop();
+                Console.WriteLine($"Finished in {sw.Elapsed.TotalMilliseconds}");
+            }
+        }
+
+        private static async Task DoWork()
+        {
+            var engine = new StringSplitEngine
+            (
+                new EnclosureOptions('\''),
+                new EnclosureOptions('"'),
+                new EnclosureOptions('<', '>')
+            );
+
+            long donotOptimize = 0;
+
+            try
+            {
+                while (running)
+                {
+                    var lines = await inputChannel.Reader.ReadAsync();
+                    foreach (var line in lines)
+                    {
+                        var res = engine.SplitSegmented(line);
+                        donotOptimize += (int)res.FirstOrDefault().Length;
+                    }
+                }
+            }
+            catch (OperationCanceledException e)
+            {
+            }
+        }
+
+        private static void TestEngine()
+        {
+            var engine = new StringSplitEngine
+            (
+                new EnclosureOptions('\''),
+                new EnclosureOptions('"'),
+                new EnclosureOptions('<', '>')
+            );
+
+            //var reference =  "'OI BOY' Boy Oi <start ay ay <level oi d > end > this should be extra <start but no< end >";
+            //var result = engine.Split(reference);
+            //var result1 = StringArrayEnumerator.GetStringArray_Old(reference);
+
+            var lines = File.ReadLines(@"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast");
+            foreach (var line in lines)
+            {
+                var result = engine.Split(line);
+                var result1 = engine.SplitSegmented(line).Select(x => x.ToString()).ToArray();
+
+                if (result.SequenceEqual(result1))
+                {
+                    continue;
+                }
+
+                if (result.Length != result1.Length)
+                {
+                    Console.WriteLine("Len unequal");
+                    //Debugger.Break();
+                    continue;
+                }
+
+                foreach (var (res1, res2, curi) in result.Zip(result1, (x, y) => (x, y)).Select((x, i) => (x.x, x.y, i)))
+                {
+                    if (res1.Equals(res2))
+                    {
+                        continue;
+                    }
+
+                    if (res1.Equals(res2.TrimStart('\'').TrimEnd('\'')))
+                    {
+                        continue;
+                    }
+
+                    Console.WriteLine($"|{res1}| != |{res2}| at {curi}");
+                }
+
+                //Debugger.Break();
+            }
+        }
+
+        private static void DoAstProcessing()
+        {
             var forbidden = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "WhileStmt",
@@ -45,22 +234,19 @@ namespace ClangReader
             };
 
             ProcessFile(forbidden, @"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast");
-            //var files = System.IO.Directory.GetFiles(@"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout", "*.ast");
-            //int counter = 0;
-            //foreach (var file in files)
-            //{
-            //    Console.WriteLine("[{0}/{1}] {2}", counter++, files.Length, file);
-            //    //if (counter < 25) continue;
 
-            //    ProcessFile(forbidden, file);
-            //}
             Console.WriteLine("[Wait for key press]");
             Console.ReadKey();
         }
 
         private static void ProcessFile(HashSet<string> forbidden, string file)
         {
+            var sw = Stopwatch.StartNew();
             AstTextFile dumpFile = new AstTextFile(file);
+
+            sw.Stop();
+            Console.WriteLine(sw.Elapsed.TotalMilliseconds);
+            return;
             //string astDumpPath = "/home/misha/Projects/cache/functionExecute.cpp.dump";
             //string astDumpPath = "F:/cache/jsmn.cpp.dump";
             //AstTextFile dumpFile = new AstTextFile(astDumpPath);

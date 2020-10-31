@@ -41,5 +41,25 @@ namespace ClangReader
                 yield return value;
             }
         }
+
+        public static IEnumerable<List<T>> ChunkIn<T>(this IEnumerable<T> input, int items)
+        {
+            var list = new List<T>(items);
+            foreach (var value in input)
+            {
+                if (list.Count >= items)
+                {
+                    yield return list;
+                    list = new List<T>(items);
+                }
+            }
+
+            if (list.Count != 0)
+            {
+                yield return list;
+            }
+        }
+
+
     }
 }
