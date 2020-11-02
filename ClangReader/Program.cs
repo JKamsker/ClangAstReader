@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -7,6 +8,9 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Runtime.Loader;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -21,167 +25,61 @@ using ClangReader.Types;
 using ClangReader.Utilities;
 
 using Microsoft.Extensions.Primitives;
+using Microsoft.Toolkit.HighPerformance.Extensions;
 
 using Newtonsoft.Json;
 
 namespace ClangReader
 {
-    public class TestAcc
+    internal enum TokenDescriptionAction
     {
-        public TestAcc()
-        {
-            items = new[] { "superSecret" };
-        }
+        DoNothing,
+        DeclCase,
 
-        public string[] items;
-        public int size;
-        public TestAcc child;
+        OffsetFirst,
+        OffsetThenFileContext,
+        NameThenOffset
     }
 
     internal class MainClass
     {
-        //public static Dictionary<string, TranslationFile> translation = new Dictionary<string, TranslationFile>();
-
-        public static void Setter(TestAcc acc, int size)
+        public static void Main(string[] args)
         {
-            // // [45 13 - 45 29]
-            //IL_0001: ldarg.0      // acc
-            //IL_0002: ldarg.1      // size
-            //IL_0003: stfld int32 ClangReader.TestAcc::size
+            AssemblyLoadContext.Default.Resolving += AssemblyLoadContext_AssemblyResolve;
+            AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
-            //// [46 9 - 46 10]
-            //            IL_0008: ret
-            acc.size = size;
+
+            var str = StringEx.Join(", ", "A", "B");
+            var str1 = StringEx.Join(", ", "A", "B", "X");
+            var str2 = StringEx.Join(", ", "A", "B", "X", "Y");
+            Console.WriteLine(str);
+            Console.WriteLine(str1);
+            Console.WriteLine(str2);
         }
 
-        public static void Setter(TestAcc acc, TestAcc child)
+        private static Assembly? CurrentDomain_AssemblyResolve(object? sender, ResolveEventArgs args)
         {
-            //// [58 9 - 58 10]
-            //IL_0000: nop
-
-            //// [60 13 - 60 31]
-            //IL_0001: ldarg.0      // acc
-            //IL_0002: ldarg.1      // child
-            //IL_0003: stfld        class ClangReader.TestAcc ClangReader.TestAcc::child
-
-            //// [61 9 - 61 10]
-            //IL_0008: ret
-
-            acc.child = child;
+            Debugger.Break();
+            return null;
         }
 
-        public static TestAcc Getter(TestAcc acc)
+        private static Assembly? AssemblyLoadContext_AssemblyResolve(AssemblyLoadContext arg1, AssemblyName arg2)
         {
-            //IL_0000: ldarg.0      // acc
-            //IL_0001: ldfld        class ClangReader.TestAcc ClangReader.TestAcc::child
-            //IL_0006: ret
-
-            return acc.child;
-        }
-
-        private static Action<TClassType, TFieldType> Generator<TClassType, TFieldType>(FieldInfo field)
-        {
-            DynamicMethod dm = new DynamicMethod(String.Concat("_Set", field.Name, "_"), typeof(void),
-                new Type[] { typeof(TClassType), typeof(TFieldType) },
-                field.DeclaringType, true);
-            ILGenerator generator = dm.GetILGenerator();
-
-            generator.Emit(OpCodes.Ldarg_0);
-            generator.Emit(OpCodes.Ldarg_1);
-
-            //if (field.FieldType.IsValueType)
-            //{
-            //    generator.Emit(OpCodes.Unbox_Any, field.FieldType);
-            //}
-
-            generator.Emit(OpCodes.Stfld, field);
-            generator.Emit(OpCodes.Ret);
-
-            return (Action<TClassType, TFieldType>)dm.CreateDelegate(typeof(Action<TClassType, TFieldType>));
-        }
-
-        private static void TestLine()
-        {
-            var line = "|||C:\\Users\\We--irdo\\source\\repos\\4Story\\Agnares\\4Sto";
-            
-            var lineDepth = 0;
-            var tokenStart = -1;
-            var tokenEnd = -1;
-
-            for (var i = 0; i < line.Length; i += 2)
+            if (arg2.FullName.StartsWith("SomeOrdinaryLib"))
             {
-                if (line[i] == '|' || line[i] == '`' || line[i] == ' ' || line[i] == '-')
-                {
-                    lineDepth++;
-                    continue;
-                }
-
-                tokenStart = i;
-                break;
+                return Assembly.LoadFile(@"C:\Users\Weirdo\source\repos\external\ClangAstReader\SomeOrdinaryLib\bin\Debug\netcoreapp3.1\out\SomeOrdinaryLib-mod-02.dll");
             }
 
+            Debugger.Break();
+            return null;
         }
 
-
-        public static async Task Main(string[] args)
+        private static void DoSomeOrdinaryStufF()
         {
-            DoAstProcessing();
-           // TestLine();
+            var rstr = new SomeOrdinaryLib.StringResultStruct(20);
 
-            //var path = @"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast";
-
-            //for (int i = 0; i < 5; i++)
-            //{
-            //    var j = 0;
-            //    var sw = Stopwatch.StartNew();
-            //    foreach (var line in File.ReadLines(path))
-            //    {
-            //        j++;
-            //    }
-            //    GC.Collect(3, GCCollectionMode.Forced);
-            //    sw.Stop();
-            //    Console.WriteLine($"{sw.Elapsed.TotalMilliseconds}\t\t{j}");
-            //}
-
-            //Console.WriteLine();
-            //for (int i = 0; i < 5; i++)
-            //{
-            //    var j = 0;
-            //    var sw = Stopwatch.StartNew();
-            //    var reader = new FastLineReader(path);
-            //    foreach (var line in reader.ReadLine())
-            //    {
-            //        j++;
-            //    }
-            //    GC.Collect(3, GCCollectionMode.Forced);
-
-            //    sw.Stop();
-            //    Console.WriteLine($"{sw.Elapsed.TotalMilliseconds}\t\t{j}");
-            //}
-
-            //for (int i = 0; i < 5; i++)
-            //{
-            //    var j = 0;
-            //    var sw = Stopwatch.StartNew();
-
-            //    using var sr = new StreamReader(path);
-            //    while (true)
-            //    {
-            //        var line = await sr.ReadLineAsync();
-            //        if (string.IsNullOrEmpty(line))
-            //        {
-            //            break;
-            //        }
-            //        j++;
-            //    }
-
-            //    sw.Stop();
-            //    Console.WriteLine($"{sw.Elapsed.TotalMilliseconds}\t\t{j}");
-            //}
-
-            Console.ReadLine();
-            return;
-            await PerfTestMultiThreaded();
+            rstr.SpanValue[0] = 'a';
+            Console.WriteLine(rstr.StringValue);
         }
 
         private static void Splitfancy(bool skipEmpty = true)
@@ -370,10 +268,16 @@ namespace ClangReader
         private static void ProcessFile(HashSet<string> forbidden, string file)
         {
             var sw = Stopwatch.StartNew();
-            AstTextFile dumpFile = new AstTextFile(file);
+            var reader = new AstFileReader(file);
 
+            reader.ParseAsync().RunSynchronously();
             sw.Stop();
             Console.WriteLine(sw.Elapsed.TotalMilliseconds);
+            return;
+
+            AstTextFile dumpFile = new AstTextFile(file);
+            //sw.Stop();
+            //Console.WriteLine(sw.Elapsed.TotalMilliseconds);
             return;
             //string astDumpPath = "/home/misha/Projects/cache/functionExecute.cpp.dump";
             //string astDumpPath = "F:/cache/jsmn.cpp.dump";
@@ -607,3 +511,68 @@ namespace ClangReader
         //}
     }
 }
+
+//Console.WriteLine(typeof(string).Assembly.FullName);
+//Console.WriteLine(typeof(string).Assembly.Location);
+
+//var fastAlloc = (Func<int, string>)typeof(String)
+//    .GetMethod("FastAllocateString", BindingFlags.Static | BindingFlags.NonPublic)
+//    .CreateDelegate(typeof(Func<int, string>))
+//    ;
+
+//var res = fastAlloc(20);
+//var asrefed = Unsafe.AsRef<char>(res.GetPinnableReference());
+
+//var constructor = typeof(Span<>)
+//        .GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance)
+//    ;
+
+////var ins = constructor.First();
+////var obj = ins.Invoke(ref res.GetPinnableReference());
+
+//var shared = MemoryPool<byte>.Shared.Rent(1024);
+//var memory = shared.Memory;
+//var span = memory.Span;
+
+//var str = new ArraySegment<char>("asdf".ToCharArray());
+
+//var str1 = str.ToString();
+//var str2 = string.Concat(str.AsSpan(), str.AsSpan());
+
+//while (true)
+//{
+//    var sw1 = Stopwatch.StartNew();
+//    for (int i = 0; i < 100_000_000; i++)
+//    {
+//        var as1 = memory.AsArraySegment();
+//    }
+//    sw1.Stop();
+//    Console.WriteLine(sw1.Elapsed.TotalMilliseconds);
+
+//    var sw2 = Stopwatch.StartNew();
+//    for (int i = 0; i < 100_000_000; i++)
+//    {
+//        var ok = MemoryMarshal.TryGetArray(memory, out ArraySegment<byte> as2);
+//    }
+//    sw2.Stop();
+//    Console.WriteLine(sw2.Elapsed.TotalMilliseconds);
+//    Console.WriteLine();
+//    Thread.Sleep(1000);
+//}
+
+//span.GetDjb2HashCode();
+
+////var sp1 = "henlo".AsSpan();
+////var sp2 = "henlo".AsSpan();
+////var sw = Stopwatch.StartNew();
+////for (int i = 0; i < 1_000_000_000; i++)
+////{
+////    sp1.GetDjb2HashCode();
+////}
+////sw.Stop();
+////Console.WriteLine(sw.Elapsed.TotalMilliseconds);
+////DoAstProcessing();
+
+//Console.ReadLine();
+//return;
+////await PerfTestMultiThreaded();

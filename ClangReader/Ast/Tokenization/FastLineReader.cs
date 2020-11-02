@@ -1,24 +1,16 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Toolkit.HighPerformance.Extensions;
+
 namespace ClangReader.Utilities
 {
-    public struct AstLineResult
-    {
-        public static readonly AstLineResult Default = new AstLineResult();
-        public ReadOnlyCollectionEx<char> Collection { get; }
-
-        public AstLineResult(ReadOnlyCollectionEx<char> collection)
-        {
-            Collection = collection;
-        }
-    }
-
     public class FastLineReader
     {
         private readonly string _filePath;
@@ -39,11 +31,15 @@ namespace ClangReader.Utilities
             var memory = memoryOwner.Memory;
 
             var tmpMemory = ArraySegment<char>.Empty;
+            var parseResult = new ParseLineResult(ParseLineStatus.Success, 0);
 
             while (true)
             {
                 tmpMemory = ReadSpan(sr, memory.AsArraySegment());
-                var parseResult = new ParseLineResult(ParseLineStatus.Success, 0);
+                if (!parseResult.Status.HasFlag(ParseLineStatus.EndlRequired))
+                {
+                    parseResult = new ParseLineResult(ParseLineStatus.Success, 0);
+                }
 
                 if (tmpMemory.Count == 0)
                 {
@@ -55,7 +51,7 @@ namespace ClangReader.Utilities
                     yield break;
                 }
 
-                while ((parseResult.Status & ParseLineStatus.Success) != 0)
+                while (parseResult.Status.HasFlag(ParseLineStatus.Success) || (parseResult.Status.HasFlag(ParseLineStatus.EndlRequired) && tmpMemory.Count > 0))
                 {
                     parseResult = ParseLine(tmpMemory, list, parseResult.Status);
                     tmpMemory = tmpMemory.Slice(parseResult.Index);

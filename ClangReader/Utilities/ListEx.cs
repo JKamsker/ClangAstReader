@@ -6,6 +6,8 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 
+using ClangReader.Models;
+
 namespace ClangReader.Utilities
 {
     public class ListEx<T> : List<T>
@@ -14,18 +16,14 @@ namespace ClangReader.Utilities
         {
         }
 
-        private static FieldInfo GetField(string name)
-        {
-            return typeof(List<T>).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
-        }
-
         public int Version
         {
             get => MethodStorage.VersionGetter(this);
             set => MethodStorage.VersionSetter(this, value);
         }
 
-        public int Count
+        // ReSharper disable once InconsistentNaming
+        private int __internalCount
         {
             get => base.Count;
             set
@@ -34,7 +32,7 @@ namespace ClangReader.Utilities
                 Version++;
             }
         }
-
+        public ArraySegment<T> ArraySegment => new ArraySegment<T>(GetUnderlyingBuffer(), 0, base.Count);
         public Span<T> Span => GetUnderlyingBuffer().AsSpan(0, base.Count);
         public Memory<T> Memory => GetUnderlyingBuffer().AsMemory(0, base.Count);
 
@@ -50,12 +48,15 @@ namespace ClangReader.Utilities
         {
         }
 
+        /// <summary>
+        /// RoSpan support, yay
+        /// </summary>
+        /// <param name="input"></param>
         public void AddRange(ReadOnlySpan<T> input)
         {
             var _size = base.Count;
 
             var count = input.Length;
-            var index = input.Length;
 
             if (count <= 0)
             {
@@ -64,16 +65,10 @@ namespace ClangReader.Utilities
 
             EnsureCapacity(_size + count);
             var _items = GetUnderlyingBuffer();
-            //var index = Index;
-
-            if (index < _size)
-            {
-                Array.Copy(_items, index, _items, index + count, _size - index);
-            }
-
+            
             input.CopyTo(_items.AsSpan(_size));
 
-            Count = _size + count;
+            __internalCount = _size + count;
             Version++;
         }
 
@@ -123,6 +118,11 @@ namespace ClangReader.Utilities
                 var lambda = Expression.Lambda<Func<List<T>, T[]>>(exp, param);
                 return lambda.Compile(false);
             }
+
+            private static FieldInfo GetField(string name)
+            {
+                return typeof(List<T>).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
+            }
         }
     }
 
@@ -135,6 +135,7 @@ namespace ClangReader.Utilities
             _bufferRetreiver = bufferRetreiver;
         }
 
+        public ReadOnlyArraySegment<T> ArraySegment => new ReadOnlyArraySegment<T>(_bufferRetreiver(), 0, base.Count);
         public ReadOnlySpan<T> Span => _bufferRetreiver().AsSpan(0, base.Count);
         public ReadOnlyMemory<T> Memory => _bufferRetreiver().AsMemory(0, base.Count);
 

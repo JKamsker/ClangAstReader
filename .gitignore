@@ -2,3 +2,5 @@
 /ClangReader/bin/**/*
 /ClangReader/obj/**/*
 /packages/Newtonsoft.Json.8.0.3
+/SomeOrdinaryLib/bin
+/SomeOrdinaryLib/obj

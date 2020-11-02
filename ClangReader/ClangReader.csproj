@@ -20,11 +20,18 @@
   
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Primitives" Version="3.1.9" />
+    <PackageReference Include="Microsoft.Toolkit.HighPerformance" Version="6.1.1" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="System.Threading.Channels" Version="4.7.1" />
   </ItemGroup>
   
   <ItemGroup>
     <Folder Include="Properties\" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <Reference Include="SomeOrdinaryLib">
+      <HintPath>..\SomeOrdinaryLib\bin\Debug\netcoreapp3.1\out\SomeOrdinaryLib-mod-02.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>

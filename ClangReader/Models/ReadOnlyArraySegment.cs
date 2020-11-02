@@ -8,12 +8,10 @@ using System.Text;
 
 namespace ClangReader.Models
 {
-
     public static class ReadOnlyArraySegmentExtensions
     {
         public static unsafe ReadOnlyArraySegment<char> AsReadOnlyArraySegment(this string input)
         {
-
             //input.ToCharArray();
 
             var data = input.GetPinnableReference();
@@ -22,14 +20,13 @@ namespace ClangReader.Models
                 for (int i = 0; i < input.Length; i++)
                 {
                     Console.WriteLine(*(p + i));
-
                 }
             }
 
             return default;
-
         }
     }
+
     public readonly struct ReadOnlyArraySegment<T> : IReadOnlyList<T> // IList<T>,
     {
         // Do not replace the array allocation with Array.Empty. We don't want to have the overhead of
@@ -70,6 +67,10 @@ namespace ClangReader.Models
             _array = array;
             _offset = offset;
             _count = count;
+        }
+
+        public ReadOnlyArraySegment(ArraySegment<T> source) : this(source.Array, source.Offset, source.Count)
+        {
         }
 
         public T[]? Array => _array;
@@ -129,17 +130,20 @@ namespace ClangReader.Models
             System.Array.Copy(_array!, _offset, destination, destinationIndex, _count);
         }
 
-        public void CopyTo(ReadOnlyArraySegment<T> destination)
+        public void CopyTo(ArraySegment<T> destination)
         {
             ThrowInvalidOperationIfDefault();
-            destination.ThrowInvalidOperationIfDefault();
+            if (destination.Array == null)
+            {
+                throw new InvalidOperationException("InvalidOperation_NullArray");
+            }
 
-            if (_count > destination._count)
+            if (_count > destination.Count)
             {
                 throw new ArgumentException("Argument_DestinationTooShort", "destination");
             }
 
-            System.Array.Copy(_array!, _offset, destination._array!, destination._offset, _count);
+            System.Array.Copy(_array!, _offset, destination.Array!, destination.Offset, _count);
         }
 
         public override bool Equals(object? obj)
@@ -179,6 +183,8 @@ namespace ClangReader.Models
             return new ReadOnlyArraySegment<T>(_array!, _offset + index, count);
         }
 
+        public ReadOnlySpan<T> Span => _array.AsSpan(_offset, _count);
+
         public T[] ToArray()
         {
             ThrowInvalidOperationIfDefault();
@@ -205,53 +211,6 @@ namespace ClangReader.Models
 
         public static implicit operator ReadOnlyArraySegment<T>(T[] array) => array != null ? new ReadOnlyArraySegment<T>(array) : default;
 
-        #region IList<T>
-
-        //T IList<T>.this[int index]
-        //{
-        //    get
-        //    {
-        //        ThrowInvalidOperationIfDefault();
-        //        if (index < 0 || index >= _count)
-        //            throw new ArgumentOutOfRangeException("ArgumentOutOfRange_Index");
-
-        //        return _array![_offset + index];
-        //    }
-
-        //    set
-        //    {
-        //        ThrowInvalidOperationIfDefault();
-        //        if (index < 0 || index >= _count)
-        //            throw new ArgumentOutOfRangeException("ArgumentOutOfRange_Index");
-
-        //        _array![_offset + index] = value;
-        //    }
-        //}
-
-        //int IList<T>.IndexOf(T item)
-        //{
-        //    ThrowInvalidOperationIfDefault();
-
-        //    int index = System.Array.IndexOf<T>(_array!, item, _offset, _count);
-
-        //    Debug.Assert(index == -1 ||
-        //                    (index >= _offset && index < _offset + _count));
-
-        //    return index >= 0 ? index - _offset : -1;
-        //}
-
-        //void IList<T>.Insert(int index, T item)
-        //{
-        //    throw new NotSupportedException();
-        //}
-
-        //void IList<T>.RemoveAt(int index)
-        //{
-        //    throw new NotSupportedException();
-        //}
-
-        #endregion IList<T>
-
         #region IReadOnlyList<T>
 
         T IReadOnlyList<T>.this[int index]
@@ -267,48 +226,6 @@ namespace ClangReader.Models
         }
 
         #endregion IReadOnlyList<T>
-
-        #region ICollection<T>
-
-        //bool ICollection<T>.IsReadOnly
-        //{
-        //    get
-        //    {
-        //        // the indexer setter does not throw an exception although IsReadOnly is true.
-        //        // This is to match the behavior of arrays.
-        //        return true;
-        //    }
-        //}
-
-        //void ICollection<T>.Add(T item)
-        //{
-        //    throw new NotSupportedException();
-        //}
-
-        //void ICollection<T>.Clear()
-        //{
-        //    throw new NotSupportedException();
-        //}
-
-        //bool ICollection<T>.Contains(T item)
-        //{
-        //    ThrowInvalidOperationIfDefault();
-
-        //    int index = System.Array.IndexOf<T>(_array!, item, _offset, _count);
-
-        //    Debug.Assert(index == -1 ||
-        //                    (index >= _offset && index < _offset + _count));
-
-        //    return index >= 0;
-        //}
-
-        //bool ICollection<T>.Remove(T item)
-        //{
-        //    throw new NotSupportedException();
-        //    return default;
-        //}
-
-        #endregion ICollection<T>
 
         #region IEnumerable<T>
 
@@ -328,6 +245,13 @@ namespace ClangReader.Models
             {
                 throw new InvalidOperationException("InvalidOperation_NullArray");
             }
+        }
+
+        public static implicit operator ReadOnlySpan<T>(ReadOnlyArraySegment<T> arraySegment) => arraySegment.Span;
+
+        public override string ToString()
+        {
+            return Span.ToString();
         }
 
         public struct Enumerator : IEnumerator<T>

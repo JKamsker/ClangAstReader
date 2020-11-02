@@ -39,6 +39,28 @@ namespace ClangReader
             return name;
         }
 
+        public void AddChild(AstToken token, int depth)
+        {
+            if (depth <= 0)
+            {
+                AddChild(token);
+            }
+
+            children[^1].AddChild(token, depth - 1);
+        }
+
+        public void AddChild(AstToken token)
+        {
+            token = token ?? throw new Exception();
+            if (token.parent != null && token.parent != this)
+            {
+                throw new ArgumentException("This child already has an parrent", nameof(token.parent));
+            }
+
+            children.Add(token);
+            token.parent = this;
+        }
+
         public IEnumerable<AstToken> TraverseParents(bool includeThis = false)
         {
             if (includeThis)
@@ -94,15 +116,10 @@ namespace ClangReader
         {
             this.filename = astDumpPath;
 
-            //  string[] lines = System.IO.File.ReadAllLines();
-
-            var lines = File.ReadLines(astDumpPath);
-
             rootTokens = new List<AstToken>();
             var currentTokens = new ListEx<AstToken>();
 
-            var contextFilename = new AstTokenContext() { sourceFile = "<invalid sloc>", column = 0, line = 0 };
-            foreach (var line in lines)
+            foreach (var line in File.ReadLines(astDumpPath))
             {
                 var lineDepth = 0;
                 var tokenStart = -1;
@@ -133,41 +150,33 @@ namespace ClangReader
                     declaration = line.Substring(tokenEnd + 1);
                 }
 
-                var astToken = ParseTokenDescription(token, declaration, contextFilename);
+                var astToken = ParseTokenDescription(token, declaration);
+
                 if (lineDepth == 0)
                 {
                     rootTokens.Add(astToken);
-                    if (currentTokens.Count == 0)
-                    {
-                        currentTokens.Add(astToken);
-                    }
-                    else
-                    {
-                        currentTokens[0] = astToken;
-                    }
                 }
-                else
+
+                while (lineDepth >= currentTokens.Count)
                 {
-                    //if (currentTokens.Count > lineDepth + 1)
-                    //{
-                    //    var bigger = currentTokens.Span.Slice(lineDepth + 1);
-                    //    if (!bigger.IsEmpty)
-                    //    {
-                    //        bigger.Clear();
-                    //        currentTokens.Count -= bigger.Length;
-                    //    }
-                    //}
+                    currentTokens.Add(null);
+                }
 
-                    if (lineDepth >= currentTokens.Count)
-                    {
-                        currentTokens.Add(astToken);
-                    }
-                    else
-                    {
-                        currentTokens[lineDepth] = astToken;
-                    }
+                currentTokens[lineDepth] = astToken;
 
+                //if (lineDepth >= currentTokens.Count)
+                //{
+                //    currentTokens.Add(astToken);
+                //}
+                //else
+                //{
+                //    currentTokens[lineDepth] = astToken;
+                //}
+
+                if (lineDepth != 0)
+                {
                     var parent = currentTokens[lineDepth - 1];
+                    Debug.Assert(parent != null);
 
                     parent.children.Add(astToken);
                     astToken.parent = parent;
@@ -177,10 +186,17 @@ namespace ClangReader
 
         protected static string GetSufix(string source)
         {
-            if (source[source.Length - 1] == '>') return source;
+            if (source[^1] == '>')
+            {
+                return source;
+            }
+
             for (var i = source.Length - 1; i >= 0; i--)
             {
-                if (char.IsUpper(source[i])) return source.Substring(i);
+                if (char.IsUpper(source[i]))
+                {
+                    return source.Substring(i);
+                }
             }
             return source;
         }
@@ -401,8 +417,9 @@ namespace ClangReader
             return parts.AsReadOnly();
         }
 
-        private static AstToken ParseTokenDescription(string name, string description, AstTokenContext contextFilename)
+        private static AstToken ParseTokenDescription(string name, string description)
         {
+            var contextFilename = new AstTokenContext() { sourceFile = "<invalid sloc>", column = 0, line = 0 };
             var token = new AstToken() { name = name };
             var parameters = GetStringSegments(description);
             var parameterStartIndex = 0;
@@ -505,19 +522,14 @@ namespace ClangReader
 
             var fileContext = token.fileContext.Substring(1, token.fileContext.Length - 2);
 
-            if (fileContext.Contains(",")) fileContext = fileContext.Substring(0, fileContext.IndexOf(","));
+            if (fileContext.Contains(","))
+            {
+                fileContext = fileContext.Substring(0, fileContext.IndexOf(","));
+            }
 
             var parts = fileContext.Split(':');
 
-            while (parts.Length > 3)
-            {
-                var newPart = string.Join(":", parts[0], parts[1]);
-
-                parts = Enumerable.Empty<string>()
-                    .Concat(new[] { newPart })
-                    .Concat(parts.Skip(2))
-                    .ToArray();
-            }
+   
 
             if (parts[0] == "<invalid sloc>")
             {
@@ -548,20 +560,24 @@ namespace ClangReader
             }
             else
             {
+                while (parts.Length > 3)
+                {
+                    var newPart = string.Join(":", parts[0], parts[1]);
+
+                    parts = Enumerable.Empty<string>()
+                        .Concat(new[] { newPart })
+                        .Concat(parts.Skip(2))
+                        .ToArray();
+                }
+
                 contextFilename.sourceFile = parts[0];
                 contextFilename.line = int.Parse(parts[1]);
                 contextFilename.column = int.Parse(parts[2]);
             }
 
-            token.context = new AstTokenContext()
-            {
-                column = contextFilename.column,
-                line = contextFilename.line,
-                sourceFile = contextFilename.sourceFile
-            };
+            token.context = contextFilename;
 
             // remove service properties
-
             if (token.properties.Length > 0 && token.properties[0] == "implicit")
             {
                 token.attributes = token.attributes.Append(token.properties[0]).ToArray();
