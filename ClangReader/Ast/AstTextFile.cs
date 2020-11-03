@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization.Json;
 using System.Text;
 
 using ClangReader.Utilities;
@@ -34,6 +35,19 @@ namespace ClangReader
         public List<AstToken> children = new List<AstToken>();
         public AstToken parent;
 
+        public AstToken() : this(true)
+        {
+            
+        }
+
+        public AstToken(bool initializeChildren  = true)
+        {
+            if (initializeChildren)
+            {
+                children = new List<AstToken>();
+            }
+        }
+
         public override string ToString()
         {
             return name;
@@ -44,6 +58,7 @@ namespace ClangReader
             if (depth <= 0)
             {
                 AddChild(token);
+                return;
             }
 
             children[^1].AddChild(token, depth - 1);

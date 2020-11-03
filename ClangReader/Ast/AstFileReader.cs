@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
@@ -110,18 +111,33 @@ namespace ClangReader.Ast
         {
             _filePath = filePath;
 
-            _workerInputChannel = Channel.CreateUnbounded<AstTokenSurrogate>(new UnboundedChannelOptions
+            //_workerInputChannel = Channel.CreateUnbounded<AstTokenSurrogate>(new UnboundedChannelOptions
+            //{
+            //    SingleWriter = true,
+            //    AllowSynchronousContinuations = false,
+            //});
+
+            _workerInputChannel = Channel.CreateBounded<AstTokenSurrogate>(new BoundedChannelOptions(Environment.ProcessorCount * 2)
             {
                 SingleWriter = true,
-                AllowSynchronousContinuations = false
+                AllowSynchronousContinuations = false,
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = false
             });
         }
+
+        private List<Task> _tasks = new List<Task>();
 
         public async Task ParseAsync()
         {
             //[0]	{[0, 1]}
             //[1]	{[1, 15045]}
             //[2]	{[2, 89154]}
+
+            for (int i = 0; i < Environment.ProcessorCount * 1.2; i++) //Environment.ProcessorCount
+            {
+                _tasks.Add(Task.Run(async () => await RunProcessorAsync(default)));
+            }
 
             var fastReader = new FastLineReader(_filePath);
             var tokenizer = new FastAstTokenizer(fastReader);
@@ -130,7 +146,7 @@ namespace ClangReader.Ast
             AstToken currentRoot = null;
 
             //var statDict = new Dictionary<int, int>();
-
+            var sw = Stopwatch.StartNew();
             var batchList = new List<AstTokenizerBatchItem>();
             foreach (var astTokenizerBatchResult in tokenizer.AstTokenizerBatchResults())
             {
@@ -141,8 +157,10 @@ namespace ClangReader.Ast
                     if (lineDepth == 0)
                     {
                         //TODO: Parse that shit
-                        currentRoot = new AstToken();
+                        currentRoot = new AstToken(true);
+                        ParseTokenDescription(currentRoot, item);
                         rootTokens.Add(currentRoot);
+                        item.MarkAsProcessed();
                         continue;
                     }
 
@@ -150,14 +168,14 @@ namespace ClangReader.Ast
                     {
                         if (currentRoot == null)
                         {
-                            currentRoot = new AstToken() { name = "Unknown" };
+                            currentRoot = new AstToken(true) { name = "Unknown" };
                             rootTokens.Add(currentRoot);
                         }
 
                         var surrogate = new AstTokenSurrogate
                         {
                             BatchItems = batchList,
-                            Token = new AstToken()
+                            Token = new AstToken(false)
                         };
 
                         currentRoot.AddChild(surrogate.Token);
@@ -169,36 +187,65 @@ namespace ClangReader.Ast
                     batchList.Add(item);
                 }
 
-                astTokenizerBatchResult.Dispose();
+                //astTokenizerBatchResult.Dispose();
             }
+
+            _workerInputChannel.Writer.Complete();
+
+            sw.Stop();
+            Console.WriteLine(sw.Elapsed.TotalMilliseconds);
+            while (true)
+            {
+                await Task.Delay(1000);
+            }
+
+            Console.ReadLine();
         }
 
         public async Task RunProcessorAsync(CancellationToken cancellationTokentoken)
         {
-            while (true)
+            try
             {
-                var currentBatch = await _workerInputChannel.Reader.ReadAsync(cancellationTokentoken);
-                foreach (var batchItem in currentBatch.BatchItems)
+                while (true)
                 {
-                    AstToken itemtoken;
-                    if (batchItem.LineDepth == 1)
+                    var currentBatch = await _workerInputChannel.Reader.ReadAsync(cancellationTokentoken);
+                    foreach (var batchItem in currentBatch.BatchItems)
                     {
-                        itemtoken = currentBatch.Token;
-                    }
-                    else
-                    {
-                        itemtoken = new AstToken();
-                        currentBatch.Token.AddChild(itemtoken, batchItem.LineDepth - 1);
-                    }
+                        AstToken itemtoken;
+                        if (batchItem.LineDepth == 1)
+                        {
+                            itemtoken = currentBatch.Token;
+                            itemtoken.children ??= new List<AstToken>();
+                        }
+                        else
+                        {
+                            itemtoken = new AstToken();
+                            currentBatch.Token.AddChild(itemtoken, batchItem.LineDepth - 2);
+                        }
 
-                    ParseTokenDescription(itemtoken, batchItem);
+                        ParseTokenDescription(itemtoken, batchItem);
+                        batchItem.MarkAsProcessed();
+                    }
                 }
+            }
+            catch (ChannelClosedException)
+            {
+                Console.WriteLine("Operation cancelled off task");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Task failed: {ex}");
+            }
+            finally
+            {
+                // Console.WriteLine("Finished off task");
             }
         }
 
         private static void ParseTokenDescription(AstToken token, AstTokenizerBatchItem batchItem)
         {
             batchItem.ParseTokenAndDeclraction(out var name, out var description);
+            token.name = name.ToString();
 
             var parameterStartIndex = 0;
             var parameters = GetSegments(description).ToArray();
@@ -336,7 +383,7 @@ namespace ClangReader.Ast
             var fileContext = token.fileContext.AsSpan(1, token.fileContext.Length - 2);
             var commaPosition = fileContext.IndexOf(',');
 
-            if (commaPosition != 0)
+            if (commaPosition != -1)
             {
                 fileContext = fileContext.Slice(0, commaPosition);
             }
@@ -449,10 +496,10 @@ namespace ClangReader.Ast
             return source;
         }
 
-        public static IEnumerable<ReadOnlyArraySegment<char>> GetSegments(ReadOnlyArraySegment<char> source)
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public static List<ReadOnlyArraySegment<char>> GetSegments(ReadOnlyArraySegment<char> source)
         {
             var sourceCopy = source.Slice(0);
-
             // var sourceCopy = source.AsSpan();
             // Avg: 15,..
             // To 16 cause its a natural cap
@@ -464,6 +511,7 @@ namespace ClangReader.Ast
             while (sourceCopy.Count > 0)
             {
                 var tryAgain = false;
+
                 for (var i = 0; i < sourceCopy.Count; i++)
                 {
                     var current = sourceCopy[i];
@@ -509,8 +557,8 @@ namespace ClangReader.Ast
                             sourceCopy.Slice(1, i - 2) :
                             sourceCopy.Slice(0, i);
 
-                        //parts.Add(subvalue);
-                        yield return subvalue;
+                        parts.Add(subvalue);
+                        //yield return subvalue;
 
                         sourceCopy = sourceCopy.Slice(i + 1);
                         tryAgain = true;
@@ -521,13 +569,13 @@ namespace ClangReader.Ast
                 if (tryAgain) continue;
 
                 parts.Add(sourceCopy);
-                yield return sourceCopy;
-                yield break;
+                return parts;
+                //yield break;
             }
 
             //maxsize = Math.Max(parts.Count, maxsize);
             //sizes.Add(parts.Count);
-            //return parts.AsReadOnly();
+            return parts;
         }
     }
 }

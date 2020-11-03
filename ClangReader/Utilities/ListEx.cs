@@ -72,9 +72,9 @@ namespace ClangReader.Utilities
             Version++;
         }
 
-        public ReadOnlyCollectionEx<T> AsReadonlyEx() => new ReadOnlyCollectionEx<T>(this, GetUnderlyingBuffer);
+        public ReadOnlyListEx<T> AsReadonlyEx() => new ReadOnlyListEx<T>(this, GetUnderlyingBuffer);
 
-        public static implicit operator ReadOnlyCollectionEx<T>(ListEx<T> listEx) => listEx.AsReadonlyEx();
+        public static implicit operator ReadOnlyListEx<T>(ListEx<T> listEx) => listEx.AsReadonlyEx();
 
         private T[] GetUnderlyingBuffer() => MethodStorage.BufferRetreiver(this);
 
@@ -126,19 +126,25 @@ namespace ClangReader.Utilities
         }
     }
 
-    public class ReadOnlyCollectionEx<T> : ReadOnlyCollection<T>
+    public class ReadOnlyListEx<T> : ReadOnlyCollection<T>
     {
         private readonly Func<T[]> _bufferRetreiver;
 
-        public ReadOnlyCollectionEx(ListEx<T> list, Func<T[]> bufferRetreiver) : base(list)
+        public ReadOnlyListEx(ListEx<T> list, Func<T[]> bufferRetreiver) : base(list)
         {
             _bufferRetreiver = bufferRetreiver;
         }
+
+        public void CopyTo(Span<T> targetBuffer)
+        {
+            Span.CopyTo(targetBuffer);
+        }
+
 
         public ReadOnlyArraySegment<T> ArraySegment => new ReadOnlyArraySegment<T>(_bufferRetreiver(), 0, base.Count);
         public ReadOnlySpan<T> Span => _bufferRetreiver().AsSpan(0, base.Count);
         public ReadOnlyMemory<T> Memory => _bufferRetreiver().AsMemory(0, base.Count);
 
-        public static implicit operator ReadOnlyCollectionEx<T>(List<T> listEx) => new ListEx<T>(listEx).AsReadonlyEx();
+        public static implicit operator ReadOnlyListEx<T>(List<T> listEx) => new ListEx<T>(listEx).AsReadonlyEx();
     }
 }

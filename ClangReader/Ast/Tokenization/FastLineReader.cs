@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,8 +21,10 @@ namespace ClangReader.Utilities
             _filePath = filePath;
         }
 
-        public IEnumerable<ReadOnlyCollectionEx<char>> ReadLine()
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public IEnumerable<ReadOnlyListEx<char>> ReadLine()
         {
+
             var list = new ListEx<char>();
 
             using var memoryOwner = MemoryPool<char>.Shared.Rent(10 * 1024);
@@ -66,6 +69,7 @@ namespace ClangReader.Utilities
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         private static ArraySegment<char> ReadSpan(StreamReader sr, ArraySegment<char> memory)
         {
             var read = sr.Read(memory);
@@ -83,6 +87,7 @@ namespace ClangReader.Utilities
         /// <param name="input"></param>
         /// <param name="builder"></param>
         /// <returns>True means new line was found</returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         private ParseLineResult ParseLine(ReadOnlySpan<char> input, ListEx<char> builder, in ParseLineStatus previousStatus = ParseLineStatus.None)
         {
             if (input.Length == 0)

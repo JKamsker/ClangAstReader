@@ -20,6 +20,7 @@ using System.Threading.Tasks;
 using ClangReader.Ast;
 using ClangReader.LanguageTranslation;
 using ClangReader.Models;
+using ClangReader.Pipelined;
 using ClangReader.Tests;
 using ClangReader.Types;
 using ClangReader.Utilities;
@@ -45,16 +46,9 @@ namespace ClangReader
     {
         public static void Main(string[] args)
         {
-            AssemblyLoadContext.Default.Resolving += AssemblyLoadContext_AssemblyResolve;
-            AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
-
-
-            var str = StringEx.Join(", ", "A", "B");
-            var str1 = StringEx.Join(", ", "A", "B", "X");
-            var str2 = StringEx.Join(", ", "A", "B", "X", "Y");
-            Console.WriteLine(str);
-            Console.WriteLine(str1);
-            Console.WriteLine(str2);
+            DoAstProcessing();
+            Console.WriteLine("kkk");
+            Console.ReadLine();
         }
 
         private static Assembly? CurrentDomain_AssemblyResolve(object? sender, ResolveEventArgs args)
@@ -270,7 +264,7 @@ namespace ClangReader
             var sw = Stopwatch.StartNew();
             var reader = new AstFileReader(file);
 
-            reader.ParseAsync().RunSynchronously();
+            reader.ParseAsync().Wait();
             sw.Stop();
             Console.WriteLine(sw.Elapsed.TotalMilliseconds);
             return;
