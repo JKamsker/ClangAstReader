@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ClangReader
 {
-    public static class Extensions
+    public static class EnumerableExtensions
     {
         public static IEnumerable<T> TrySwallow<T>(this IEnumerable<T> input)
         {

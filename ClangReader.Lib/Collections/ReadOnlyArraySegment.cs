@@ -8,25 +8,6 @@ using System.Text;
 
 namespace ClangReader.Models
 {
-    public static class ReadOnlyArraySegmentExtensions
-    {
-        public static unsafe ReadOnlyArraySegment<char> AsReadOnlyArraySegment(this string input)
-        {
-            //input.ToCharArray();
-
-            var data = input.GetPinnableReference();
-            fixed (char* p = &input.GetPinnableReference())
-            {
-                for (int i = 0; i < input.Length; i++)
-                {
-                    Console.WriteLine(*(p + i));
-                }
-            }
-
-            return default;
-        }
-    }
-
     public readonly struct ReadOnlyArraySegment<T> : IReadOnlyList<T> // IList<T>,
     {
         // Do not replace the array allocation with Array.Empty. We don't want to have the overhead of

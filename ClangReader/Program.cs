@@ -32,16 +32,6 @@ using Newtonsoft.Json;
 
 namespace ClangReader
 {
-    internal enum TokenDescriptionAction
-    {
-        DoNothing,
-        DeclCase,
-
-        OffsetFirst,
-        OffsetThenFileContext,
-        NameThenOffset
-    }
-
     internal class MainClass
     {
         public static void Main(string[] args)
@@ -262,16 +252,16 @@ namespace ClangReader
         private static void ProcessFile(HashSet<string> forbidden, string file)
         {
             var sw = Stopwatch.StartNew();
-            var reader = new AstFileReader(file);
+            //var reader = new AstFileReader(file);
 
-            reader.ParseAsync().Wait();
-            sw.Stop();
-            Console.WriteLine(sw.Elapsed.TotalMilliseconds);
-            return;
-
-            AstTextFile dumpFile = new AstTextFile(file);
+            //reader.ParseAsync().Wait();
             //sw.Stop();
             //Console.WriteLine(sw.Elapsed.TotalMilliseconds);
+            //return;
+
+            AstTextFile dumpFile = new AstTextFile(file);
+            sw.Stop();
+            Console.WriteLine(sw.Elapsed.TotalMilliseconds);
             return;
             //string astDumpPath = "/home/misha/Projects/cache/functionExecute.cpp.dump";
             //string astDumpPath = "F:/cache/jsmn.cpp.dump";

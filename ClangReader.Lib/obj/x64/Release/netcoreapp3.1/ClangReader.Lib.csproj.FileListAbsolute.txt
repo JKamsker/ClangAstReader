@@ -1,0 +1,8 @@
+C:\Users\Weirdo\source\repos\external\ClangAstReader\ClangReader.Lib\bin\x64\Release\netcoreapp3.1\ClangReader.Lib.deps.json
+C:\Users\Weirdo\source\repos\external\ClangAstReader\ClangReader.Lib\bin\x64\Release\netcoreapp3.1\ClangReader.Lib.dll
+C:\Users\Weirdo\source\repos\external\ClangAstReader\ClangReader.Lib\bin\x64\Release\netcoreapp3.1\ClangReader.Lib.pdb
+C:\Users\Weirdo\source\repos\external\ClangAstReader\ClangReader.Lib\obj\x64\Release\netcoreapp3.1\ClangReader.Lib.AssemblyInfoInputs.cache
+C:\Users\Weirdo\source\repos\external\ClangAstReader\ClangReader.Lib\obj\x64\Release\netcoreapp3.1\ClangReader.Lib.AssemblyInfo.cs
+C:\Users\Weirdo\source\repos\external\ClangAstReader\ClangReader.Lib\obj\x64\Release\netcoreapp3.1\ClangReader.Lib.csproj.CoreCompileInputs.cache
+C:\Users\Weirdo\source\repos\external\ClangAstReader\ClangReader.Lib\obj\x64\Release\netcoreapp3.1\ClangReader.Lib.dll
+C:\Users\Weirdo\source\repos\external\ClangAstReader\ClangReader.Lib\obj\x64\Release\netcoreapp3.1\ClangReader.Lib.pdb
