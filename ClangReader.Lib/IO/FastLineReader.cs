@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using ClangReader.Lib.Collections;
+using ClangReader.Lib.Extensions;
 
 namespace ClangReader.Lib.IO
 {

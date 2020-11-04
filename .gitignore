@@ -4,3 +4,5 @@
 /packages/Newtonsoft.Json.8.0.3
 /SomeOrdinaryLib/bin
 /SomeOrdinaryLib/obj
+obj/
+bin/
