@@ -16,10 +16,10 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-
-using ClangReader.Ast;
 using ClangReader.LanguageTranslation;
-using ClangReader.Models;
+using ClangReader.Lib.Ast;
+using ClangReader.Lib.Ast.Models;
+using ClangReader.Lib.Extensions;
 using ClangReader.Pipelined;
 using ClangReader.Tests;
 using ClangReader.Types;
@@ -309,9 +309,8 @@ namespace ClangReader
             foreach (var usage in usages)
             {
                 //var allParents = usage.parent.TraverseParents().ToList();
-                var parentsInMethod = usage.parent
-                    .TraverseParents()
-                    .TakeWhile(x => x != methodDecl)
+                var parentsInMethod = EnumerableExtensions.TakeWhile(usage.parent
+                        .TraverseParents(), x => x != methodDecl)
                     .ToList();
 
                 var goodParents = parentsInMethod
@@ -332,12 +331,12 @@ namespace ClangReader
 
                     Console.WriteLine($"\t[{properties.InstanceId}] {properties.Name} ({properties.Type})");
 
-                    var illegalOperation = decl.TraverseParents().TakeWhile(x => x != methodDecl).FirstOrDefault(x => forbidden.Contains(x.name));
+                    var illegalOperation = EnumerableExtensions.TakeWhile(decl.TraverseParents(), x => x != methodDecl).FirstOrDefault(x => forbidden.Contains(x.name));
                     if (illegalOperation != null)
                     {
                         Console.WriteLine($"\tIllegal operation - {illegalOperation.name}");
 
-                        DebugNodes(decl.TraverseParents().TakeWhile(x => x != methodDecl));
+                        DebugNodes(EnumerableExtensions.TakeWhile(decl.TraverseParents(), x => x != methodDecl));
 
                         Console.WriteLine();
                     }

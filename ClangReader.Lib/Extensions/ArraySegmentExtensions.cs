@@ -1,12 +1,9 @@
 ﻿using System;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using ClangReader.Lib.Collections;
 
-using ClangReader.Models;
-using ClangReader.Utilities;
-
-namespace ClangReader
+namespace ClangReader.Lib.Extensions
 {
     public static class ArraySegmentExtensions
     {

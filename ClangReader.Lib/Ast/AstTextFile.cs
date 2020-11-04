@@ -3,14 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.Serialization.Json;
-using System.Text;
-
-using ClangReader.Utilities;
-
+using System.Runtime.CompilerServices;
+using ClangReader.Lib.Ast.Models;
+using ClangReader.Lib.Collections;
 using Microsoft.Extensions.Primitives;
 
-namespace ClangReader
+namespace ClangReader.Lib.Ast
 {
     public class AstTextFile
     {
@@ -243,6 +241,7 @@ namespace ClangReader
             return parts.ToArray();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public static IReadOnlyList<StringSegment> GetStringSegments(string source)
         {
             var sourceCopy = new StringSegment(source);
@@ -434,8 +433,6 @@ namespace ClangReader
             }
 
             var parts = fileContext.Split(':');
-
-   
 
             if (parts[0] == "<invalid sloc>")
             {

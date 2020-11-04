@@ -1,4 +1,4 @@
-﻿namespace ClangReader
+﻿namespace ClangReader.Lib.Ast.Models
 {
     public class AstTokenContext
     {

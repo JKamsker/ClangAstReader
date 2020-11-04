@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace ClangReader.Models
+namespace ClangReader.Lib.Ast.Models
 {
     public class DeclRefExprProperties : IEquatable<DeclRefExprProperties>
     {

@@ -2,11 +2,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Net.Http.Headers;
-using System.Text;
 
-namespace ClangReader.Models
+namespace ClangReader.Lib.Collections
 {
     public readonly struct ReadOnlyArraySegment<T> : IReadOnlyList<T> // IList<T>,
     {

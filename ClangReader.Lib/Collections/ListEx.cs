@@ -4,11 +4,9 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Text;
+using ClangReader.Lib.Reflection;
 
-using ClangReader.Models;
-
-namespace ClangReader.Utilities
+namespace ClangReader.Lib.Collections
 {
     public class ListEx<T> : List<T>
     {

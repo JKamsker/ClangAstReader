@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace ClangReader
+namespace ClangReader.Lib.Ast.Models
 {
     public class AstToken
     {

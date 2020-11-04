@@ -1,6 +1,6 @@
-﻿using ClangReader.Models;
+﻿using ClangReader.Lib.Collections;
 
-namespace ClangReader.Utilities
+namespace ClangReader.Lib.Ast.Models
 {
     public struct AstTokenizerResult
     {

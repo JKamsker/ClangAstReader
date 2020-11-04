@@ -1,14 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Text;
+using ClangReader.Lib.HighPerformance;
 
-using Microsoft.Toolkit.HighPerformance;
-using Microsoft.Toolkit.HighPerformance.Extensions;
-
-namespace ClangReader.Utilities
+namespace ClangReader.Lib.Extensions
 {
     public static class StringEx
     {

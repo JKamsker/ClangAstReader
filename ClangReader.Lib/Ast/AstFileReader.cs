@@ -1,26 +1,19 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using System.Xml.Serialization;
-
-using ClangReader.Models;
-using ClangReader.Utilities;
-
-using Microsoft.Extensions.Primitives;
-using Microsoft.Toolkit.HighPerformance;
-using Microsoft.Toolkit.HighPerformance.Enumerables;
+using ClangReader.Lib.Ast.Models;
+using ClangReader.Lib.Collections;
+using ClangReader.Lib.Extensions;
+using ClangReader.Lib.IO;
 using Microsoft.Toolkit.HighPerformance.Extensions;
-using Microsoft.Toolkit.HighPerformance.Helpers;
 
-namespace ClangReader.Ast
+namespace ClangReader.Lib.Ast
 {
     internal enum ContextAction
     {

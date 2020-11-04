@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Text;
-
 using Microsoft.Toolkit.HighPerformance.Extensions;
 
-namespace ClangReader.Utilities
+namespace ClangReader.Lib.Collections
 {
     public class StringToEnumMapper<TEnum> : IEnumerable
         where TEnum : Enum

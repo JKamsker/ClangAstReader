@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-
+using ClangReader.Lib.Ast.Models;
 using ClangReader.Types;
 
 namespace ClangReader.LanguageTranslation

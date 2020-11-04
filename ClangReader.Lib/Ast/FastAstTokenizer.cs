@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Diagnostics;
-using ClangReader.Models;
+using ClangReader.Lib.Ast.Models;
+using ClangReader.Lib.Collections;
+using ClangReader.Lib.Extensions;
+using ClangReader.Lib.IO;
 
-namespace ClangReader.Utilities
+namespace ClangReader.Lib.Ast
 {
     public class FastAstTokenizer
     {

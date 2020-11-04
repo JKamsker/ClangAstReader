@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
+using ClangReader.Lib.Ast.Models;
 using Newtonsoft.Json;
 
-namespace ClangReader.Utilities
+namespace ClangReader.Lib.Extensions
 {
     public static class AstExtension
     {

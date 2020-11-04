@@ -3,9 +3,10 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
-using ClangReader.Models;
+using ClangReader.Lib.Collections;
+using ClangReader.Lib.Extensions;
 
-namespace ClangReader.Utilities
+namespace ClangReader.Lib.Ast.Models
 {
     public class AstTokenizerBatchResult : IDisposable, IEnumerable, IEnumerable<AstTokenizerBatchItem>
     {

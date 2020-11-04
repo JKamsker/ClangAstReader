@@ -1,16 +1,11 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using ClangReader.Lib.Collections;
 
-using Microsoft.Toolkit.HighPerformance.Extensions;
-
-namespace ClangReader.Utilities
+namespace ClangReader.Lib.IO
 {
     public class FastLineReader
     {
