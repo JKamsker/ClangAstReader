@@ -16,6 +16,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+
 using ClangReader.LanguageTranslation;
 using ClangReader.Lib.Ast;
 using ClangReader.Lib.Ast.Models;
@@ -252,14 +253,14 @@ namespace ClangReader
         private static void ProcessFile(HashSet<string> forbidden, string file)
         {
             var sw = Stopwatch.StartNew();
-            //var reader = new AstFileReader(file);
-
+            var reader = new AstFileReader(file);
+            var rootTokens = reader.Parse_01();
             //reader.ParseAsync().Wait();
             //sw.Stop();
             //Console.WriteLine(sw.Elapsed.TotalMilliseconds);
             //return;
 
-            AstTextFile dumpFile = new AstTextFile(file);
+            //AstTextFile dumpFile = new AstTextFile(file);
             sw.Stop();
             Console.WriteLine(sw.Elapsed.TotalMilliseconds);
             return;
@@ -267,20 +268,20 @@ namespace ClangReader
             //string astDumpPath = "F:/cache/jsmn.cpp.dump";
             //AstTextFile dumpFile = new AstTextFile(astDumpPath);
 
-            foreach (var rootToken in dumpFile.rootTokens)
-            {
-                var methodDecls = rootToken.children
-                    .Where(x => x.name == "CXXMethodDecl")
-                    .Where(x => x.context.sourceFile?.EndsWith("TNetSender.cpp") == true || x.context.sourceFile?.Contains("CSSender") == true)
-                    .ToList();
+            //foreach (var rootToken in dumpFile.rootTokens)
+            //{
+            //    var methodDecls = rootToken.children
+            //        .Where(x => x.name == "CXXMethodDecl")
+            //        .Where(x => x.context.sourceFile?.EndsWith("TNetSender.cpp") == true || x.context.sourceFile?.Contains("CSSender") == true)
+            //        .ToList();
 
-                foreach (var methodDecl in methodDecls)
-                {
-                    Console.WriteLine();
-                    Console.WriteLine();
-                    ProcessMethod(forbidden, methodDecl);
-                }
-            }
+            //    foreach (var methodDecl in methodDecls)
+            //    {
+            //        Console.WriteLine();
+            //        Console.WriteLine();
+            //        ProcessMethod(forbidden, methodDecl);
+            //    }
+            //}
         }
 
         private static void ProcessMethod(HashSet<string> forbidden, AstToken methodDecl)
@@ -314,14 +315,14 @@ namespace ClangReader
                     .ToList();
 
                 var goodParents = parentsInMethod
-                    .Where(x => x.name == "CXXOperatorCallExpr")
+                    .Where(x => x.unknownName == "CXXOperatorCallExpr")
                     .Where(x => x.properties.Length == 3 && (x.properties[2] == "<<" || x.properties[2] == "'<<'"))
                     .Where(x => x.children.Count == 3)
                     .ToList();
 
                 foreach (var parent in goodParents)
                 {
-                    var decl = parent.children[2].VisitEnumerable(x => x.name == "DeclRefExpr").FirstOrDefault();
+                    var decl = parent.children[2].VisitEnumerable(x => x.unknownName == "DeclRefExpr").FirstOrDefault();
                     if (decl == null)
                     {
                         continue;
@@ -331,10 +332,10 @@ namespace ClangReader
 
                     Console.WriteLine($"\t[{properties.InstanceId}] {properties.Name} ({properties.Type})");
 
-                    var illegalOperation = EnumerableExtensions.TakeWhile(decl.TraverseParents(), x => x != methodDecl).FirstOrDefault(x => forbidden.Contains(x.name));
+                    var illegalOperation = EnumerableExtensions.TakeWhile(decl.TraverseParents(), x => x != methodDecl).FirstOrDefault(x => forbidden.Contains(x.unknownName));
                     if (illegalOperation != null)
                     {
-                        Console.WriteLine($"\tIllegal operation - {illegalOperation.name}");
+                        Console.WriteLine($"\tIllegal operation - {illegalOperation.unknownName}");
 
                         DebugNodes(EnumerableExtensions.TakeWhile(decl.TraverseParents(), x => x != methodDecl));
 
@@ -406,7 +407,7 @@ namespace ClangReader
         {
             return methodDecl.VisitEnumerable
             (
-                x => x.name == "DeclRefExpr" && new DeclRefExprProperties(x).Equals(saidMsg)
+                x => x.unknownName == "DeclRefExpr" && new DeclRefExprProperties(x).Equals(saidMsg)
             );
         }
 
@@ -414,14 +415,14 @@ namespace ClangReader
         {
             var memberExpressions = methodDecl.VisitEnumerable
             (
-                x => x.name == "MemberExpr" && x.parent.name == "CXXMemberCallExpr" && x.properties.Contains("->Say")
+                x => x.unknownName == "MemberExpr" && x.parent.unknownName == "CXXMemberCallExpr" && x.properties.Contains("->Say")
             );
 
             foreach (var memberExpression in memberExpressions)
             {
                 var otherchildren = memberExpression.parent
                     .VisitEnumerable(x => x != memberExpression)
-                    .Where(x => x.name == "DeclRefExpr")
+                    .Where(x => x.unknownName == "DeclRefExpr")
                     .Select(x => new DeclRefExprProperties(x))
                     .ToList()
                     ;
@@ -452,11 +453,11 @@ namespace ClangReader
 
         private static void ProcessSetInstruction(AstToken methodDecl)
         {
-            var setId = methodDecl.VisitEnumerable(x => x.name == "MemberExpr" && x.properties.Contains(".SetID")).FirstOrDefault();
+            var setId = methodDecl.VisitEnumerable(x => x.unknownName == "MemberExpr" && x.properties.Contains(".SetID")).FirstOrDefault();
 
             if (setId != null)
             {
-                var literals = setId.parent.VisitEnumerable(x => x.name == "BinaryOperator");
+                var literals = setId.parent.VisitEnumerable(x => x.unknownName == "BinaryOperator");
                 foreach (var literal in literals)
                 {
                     var exp = literal.AsExpression();

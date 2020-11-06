@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
+
 using ClangReader.Lib.Collections;
 using ClangReader.Lib.Extensions;
 
@@ -14,7 +15,6 @@ namespace ClangReader.Lib.Ast.Models
 
         public AstTokenizerBatchResult(List<AstTokenizerBatchItem> tokenizerResults, IDisposable disposable)
         {
-    
             TokenizerResults = tokenizerResults;
             Disposable = disposable;
             if (Disposable == null)
@@ -98,23 +98,6 @@ namespace ClangReader.Lib.Ast.Models
         {
             Processed = true;
             ParentBatch.DisposeIfAllHaveBeenProcessed();
-        }
-
-        public void ParseTokenAndDeclraction(out ReadOnlyArraySegment<char> token, out ReadOnlyArraySegment<char> declaration)
-        {
-            var line = Line;
-
-            var tokenEnd = line.IndexOf(' ');
-            if (tokenEnd == -1)
-            {
-                token = line;
-                declaration = ReadOnlyArraySegment<char>.Empty;
-            }
-            else
-            {
-                token = line[..tokenEnd];
-                declaration = line.Slice(tokenEnd + 1);
-            }
         }
     }
 }

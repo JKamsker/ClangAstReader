@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 
 namespace ClangReader.Lib.Collections
@@ -19,6 +20,7 @@ namespace ClangReader.Lib.Collections
 
         public bool TryGetMap(string value, out TEnum result) => TryGetMap(value.AsSpan(), out result);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetMap(ReadOnlySpan<char> value, out TEnum result)
         {
             return _enumMap.TryGetValue(value.GetDjb2HashCode(), out result);

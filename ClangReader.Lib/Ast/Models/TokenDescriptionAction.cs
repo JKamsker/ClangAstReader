@@ -1,6 +1,6 @@
 ﻿namespace ClangReader.Lib.Ast.Models
 {
-    internal enum TokenDescriptionAction
+    public enum TokenDescriptionAction
     {
         DoNothing,
         DeclCase,

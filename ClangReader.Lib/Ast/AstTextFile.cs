@@ -241,6 +241,8 @@ namespace ClangReader.Lib.Ast
             return parts.ToArray();
         }
 
+        private List<StringSegment> partCache = new List<StringSegment>(26);
+
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public static IReadOnlyList<StringSegment> GetStringSegments(string source)
         {
@@ -249,6 +251,7 @@ namespace ClangReader.Lib.Ast
             // var sourceCopy = source.AsSpan();
             // Avg: 15,..
             // To 16 cause its a natural cap
+            //var parts = new List<StringSegment>(16);
             var parts = new List<StringSegment>(16);
 
             var depth = 0;
@@ -325,7 +328,7 @@ namespace ClangReader.Lib.Ast
         private static AstToken ParseTokenDescription(string name, string description)
         {
             var contextFilename = new AstTokenContext() { sourceFile = "<invalid sloc>", column = 0, line = 0 };
-            var token = new AstToken() { name = name };
+            var token = new AstToken() { unknownName = name };
             var parameters = GetStringSegments(description);
             var parameterStartIndex = 0;
 
@@ -410,7 +413,7 @@ namespace ClangReader.Lib.Ast
                     break;
 
                 case "original":
-                    token.name = name + parameters[0];
+                    token.unknownName = name + parameters[0];
                     token.offset = parameters[1].ToString();
                     parameterStartIndex = 2;
                     break;
@@ -483,55 +486,55 @@ namespace ClangReader.Lib.Ast
             // remove service properties
             if (token.properties.Length > 0 && token.properties[0] == "implicit")
             {
-                token.attributes = token.attributes.Append(token.properties[0]).ToArray();
+                token.additionalAttributes = token.additionalAttributes.Append(token.properties[0]).ToArray();
                 token.properties = token.properties.Where((value, index) => index >= 1).ToArray();
             }
 
             if (token.properties.Length > 0 && token.properties[0] == "used")
             {
-                token.attributes = token.attributes.Append(token.properties[0]).ToArray();
+                token.additionalAttributes = token.additionalAttributes.Append(token.properties[0]).ToArray();
                 token.properties = token.properties.Where((value, index) => index >= 1).ToArray();
             }
 
             if (token.properties.Length > 0 && token.properties[0] == "referenced")
             {
-                token.attributes = token.attributes.Append(token.properties[0]).ToArray();
+                token.additionalAttributes = token.additionalAttributes.Append(token.properties[0]).ToArray();
                 token.properties = token.properties.Where((value, index) => index >= 1).ToArray();
             }
 
             if (token.properties.Length > 0 && token.properties[^1] == "cinit")
             {
-                token.attributes = token.attributes.Append(token.properties[^1]).ToArray();
+                token.additionalAttributes = token.additionalAttributes.Append(token.properties[^1]).ToArray();
                 token.properties = token.properties.Where((value, index) => index < token.properties.Length - 1).ToArray();
             }
 
             if (token.properties.Length > 0 && token.properties[^1] == "extern")
             {
-                token.attributes = token.attributes.Append(token.properties[^1]).ToArray();
+                token.additionalAttributes = token.additionalAttributes.Append(token.properties[^1]).ToArray();
                 token.properties = token.properties.Where((value, index) => index < token.properties.Length - 1).ToArray();
             }
 
             if (token.properties.Length > 0 && token.properties[^1] == "callinit")
             {
-                token.attributes = token.attributes.Append(token.properties[^1]).ToArray();
+                token.additionalAttributes = token.additionalAttributes.Append(token.properties[^1]).ToArray();
                 token.properties = token.properties.Where((value, index) => index < token.properties.Length - 1).ToArray();
             }
 
             if (token.properties.Length > 0 && token.properties[^1] == "static")
             {
-                token.attributes = token.attributes.Append(token.properties[^1]).ToArray();
+                token.additionalAttributes = token.additionalAttributes.Append(token.properties[^1]).ToArray();
                 token.properties = token.properties.Where((value, index) => index < token.properties.Length - 1).ToArray();
             }
 
             if (token.properties.Length > 0 && token.properties[^1] == "definition")
             {
-                token.attributes = token.attributes.Append(token.properties[^1]).ToArray();
+                token.additionalAttributes = token.additionalAttributes.Append(token.properties[^1]).ToArray();
                 token.properties = token.properties.Where((value, index) => index < token.properties.Length - 1).ToArray();
             }
 
             if (token.properties.Length > 0 && token.properties[^1] == "nrvo")
             {
-                token.attributes = token.attributes.Append(token.properties[^1]).ToArray();
+                token.additionalAttributes = token.additionalAttributes.Append(token.properties[^1]).ToArray();
                 token.properties = token.properties.Where((value, index) => index < token.properties.Length - 1).ToArray();
             }
 

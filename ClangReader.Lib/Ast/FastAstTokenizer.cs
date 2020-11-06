@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+
 using ClangReader.Lib.Ast.Models;
 using ClangReader.Lib.Collections;
 using ClangReader.Lib.Extensions;
@@ -50,7 +51,7 @@ namespace ClangReader.Lib.Ast
                 //required.CopyTo(buffer.Span);
 
                 // This could be done later at any other thread tho...
-                ParseTokenAndDeclraction(line, tokenStart, out var token, out var declaration);
+                AstTokenParserUtils.ParseTokenAndDescription(line, tokenStart, out var token, out var declaration);
                 yield return new AstTokenizerResult(lineDepth, token, declaration);
 
                 //yield return new AstTokenizerResult(lineDepth, ReadOnlyArraySegment<char>.Empty, ReadOnlyArraySegment<char>.Empty);
@@ -72,8 +73,8 @@ namespace ClangReader.Lib.Ast
             {
                 var line = rawLine.ArraySegment;
 
-                GetEssentialPart(line, out var lineDepth, out var essentialPart);
-           
+                AstTokenParserUtils.GetEssentialPart(line, out var lineDepth, out var essentialPart);
+
                 if (availableMemory.Length < essentialPart.Count)
                 {
                     if (currentResults.Count > 0)
@@ -106,63 +107,12 @@ namespace ClangReader.Lib.Ast
             currentResults = new List<AstTokenizerBatchItem>(newMemory.Length / 124);
         }
 
-        private static void GetEssentialPart(ReadOnlyArraySegment<char> line, out int lineDepth, out ReadOnlyArraySegment<char> essential)
-        {
-            lineDepth = 0;
-            var tokenStart = -1;
-            var tokenEnd = -1;
-
-            for (var i = 0; i < line.Count; i += 2)
-            {
-                if (line[i] == '|' || line[i] == '`' || line[i] == ' ' || line[i] == '-')
-                {
-                    lineDepth++;
-                    continue;
-                }
-
-                tokenStart = i;
-                break;
-            }
-
-            essential = line[tokenStart..];
-        }
-
         private static void ResizeBuffer(int minimumSize, IMemoryOwner<char> current, out IMemoryOwner<char> newOwner, out Memory<char> newMemory)
         {
             current?.Dispose();
 
             newOwner = MemoryPool<char>.Shared.Rent(minimumSize);
             newMemory = newOwner.Memory;
-        }
-
-        private static void ParseTokenAndDeclraction(ReadOnlyArraySegment<char> line, int tokenStart, out ReadOnlyArraySegment<char> token, out ReadOnlyArraySegment<char> declaration)
-        {
-            var tokenEnd = line.IndexOf(' ', tokenStart);
-            if (tokenEnd == -1)
-            {
-                token = line[tokenStart..];
-                declaration = ReadOnlyArraySegment<char>.Empty;
-            }
-            else
-            {
-                token = line[tokenStart..tokenEnd];
-                declaration = line.Slice(tokenEnd + 1);
-            }
-        }
-
-        private static void ParseTokenAndDeclraction(ReadOnlyArraySegment<char> line, out ReadOnlyArraySegment<char> token, out ReadOnlyArraySegment<char> declaration)
-        {
-            var tokenEnd = line.IndexOf(' ');
-            if (tokenEnd == -1)
-            {
-                token = line;
-                declaration = ReadOnlyArraySegment<char>.Empty;
-            }
-            else
-            {
-                token = line[..tokenEnd];
-                declaration = line.Slice(tokenEnd + 1);
-            }
         }
     }
 }

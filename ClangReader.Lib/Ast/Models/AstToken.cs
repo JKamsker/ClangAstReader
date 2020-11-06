@@ -1,11 +1,35 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace ClangReader.Lib.Ast.Models
 {
+    [Flags]
+    public enum AstAttributes
+    {
+        // ReSharper disable once InconsistentNaming
+        Not_Defined,
+
+        Implicit = 1 << 1,
+        Used = 1 << 2,
+        Referenced = 1 << 3,
+        CInit = 1 << 4,
+        Extern = 1 << 5,
+        Callinit = 1 << 6,
+        Static = 1 << 7,
+        Definition = 1 << 8,
+        Nrvo = 1 << 9,
+        Struct = 1 << 10,
+        Guid = 1 << 10,
+        Default = 1 << 11,
+
+        __int128 = 1 << 12,
+        __int128_t = 1 << 13
+    }
+
     public class AstToken
     {
-        public string name;
+        public string unknownName;
 
         public string offset;
         public string relationOffset;
@@ -13,18 +37,21 @@ namespace ClangReader.Lib.Ast.Models
         public string filePointer;
 
         public AstTokenContext context;
+
+        public AstAttributes Attributes { get; set; }
+        public AstKnownSuffix Type { get; set; }
+
         public string[] properties = Array.Empty<string>();
-        public string[] attributes = Array.Empty<string>();
+        public string[] additionalAttributes = Array.Empty<string>();
 
         public List<AstToken> children = new List<AstToken>();
         public AstToken parent;
 
         public AstToken() : this(true)
         {
-            
         }
 
-        public AstToken(bool initializeChildren  = true)
+        public AstToken(bool initializeChildren = true)
         {
             if (initializeChildren)
             {
@@ -34,9 +61,10 @@ namespace ClangReader.Lib.Ast.Models
 
         public override string ToString()
         {
-            return name;
+            return string.IsNullOrEmpty(unknownName) ? Type.ToString() : unknownName;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public void AddChild(AstToken token, int depth)
         {
             if (depth <= 0)
@@ -53,7 +81,7 @@ namespace ClangReader.Lib.Ast.Models
             token = token ?? throw new Exception();
             if (token.parent != null && token.parent != this)
             {
-                throw new ArgumentException("This child already has an parrent", nameof(token.parent));
+                throw new ArgumentException("This child already has an parent", nameof(token.parent));
             }
 
             children.Add(token);
@@ -82,8 +110,8 @@ namespace ClangReader.Lib.Ast.Models
         {
             var thisCopy = new AstTokenDto
             {
-                Name = name,
-                Attributes = attributes,
+                Name = unknownName,
+                Attributes = additionalAttributes,
                 Properties = properties,
                 Children = new List<AstTokenDto>(children.Count),
             };

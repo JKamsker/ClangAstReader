@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace ClangReader.Lib.Collections
 {
@@ -55,10 +56,15 @@ namespace ClangReader.Lib.Collections
 
         public int Offset => _offset;
 
-        public int Count => _count;
+        public int Count
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+            get => _count;
+        }
 
         public T this[int index]
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
             get
             {
                 if ((uint)index >= (uint)_count)

@@ -10,7 +10,7 @@ namespace ClangReader.Lib.Extensions
     {
         public static Expression AsExpression(this AstToken token)
         {
-            var name = token.name;
+            var name = token.unknownName;
             if (name == "BinaryOperator")
             {
                 ExpressionType type = token.properties[1] switch

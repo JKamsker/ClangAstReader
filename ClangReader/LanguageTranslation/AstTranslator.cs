@@ -24,7 +24,7 @@ namespace ClangReader.LanguageTranslation
             if (!token.context.sourceFile.StartsWith("<", StringComparison.InvariantCulture) &&
                 !token.context.sourceFile.StartsWith("/usr", StringComparison.InvariantCulture))
             {
-                switch (token.name)
+                switch (token.unknownName)
                 {
                     case "TypedefDecl":
                         ProcessTypedef(token);
@@ -56,7 +56,7 @@ namespace ClangReader.LanguageTranslation
                             ProcessMainLevelToken(childToken);
                         break;
 
-                    default: throw new NotImplementedException(token.name);
+                    default: throw new NotImplementedException(token.unknownName);
                 }
             }
         }
@@ -86,7 +86,7 @@ namespace ClangReader.LanguageTranslation
 
         private static TypeDeclaration GetTypeDeclaration(AstToken token)
         {
-            switch (token.name)
+            switch (token.unknownName)
             {
                 case "BuiltinType":
                     return new TypeDeclaration() { name = token.properties[0], isBuildIn = true };
@@ -106,7 +106,7 @@ namespace ClangReader.LanguageTranslation
                     return new TypeDeclaration() { name = token.properties[0] };
 
                 case "ParenType":
-                    switch (token.children[0].name)
+                    switch (token.children[0].unknownName)
                     {
                         case "FunctionProtoType":
                             var functionDeclaration = GetFunctionProtoDeclaration(token.children[0]);
@@ -114,7 +114,7 @@ namespace ClangReader.LanguageTranslation
                             functionDeclaration.isBuildIn = false;
                             return functionDeclaration;
 
-                        default: throw new NotImplementedException(token.children[0].name);
+                        default: throw new NotImplementedException(token.children[0].unknownName);
                     }
                 case "QualType": // type with modificator
                     return GetTypeDeclaration(token.children[0]);
@@ -123,11 +123,11 @@ namespace ClangReader.LanguageTranslation
                     return new TypeDeclaration() { name = token.properties[0] };
 
                 case "...": // params
-                    return new TypeDeclaration() { name = token.name };
+                    return new TypeDeclaration() { name = token.unknownName };
 
                 case "TemplateSpecializationType":
                     return null; // TODO
-                default: throw new NotImplementedException(token.name);
+                default: throw new NotImplementedException(token.unknownName);
             }
         }
 
@@ -196,17 +196,17 @@ namespace ClangReader.LanguageTranslation
                 type = token.properties[1],
             };
 
-            if (token.attributes.Contains("cinit"))
+            if (token.additionalAttributes.Contains("cinit"))
             {
                 variable.value = GetFunctionBody(token.children[0]);
             }
 
-            if (token.attributes.Contains(""))
+            if (token.additionalAttributes.Contains(""))
             {
                 variable.isExtern = true;
             }
 
-            if (token.attributes.Contains("extern"))
+            if (token.additionalAttributes.Contains("extern"))
             {
                 variable.isExtern = true;
             }
@@ -226,7 +226,7 @@ namespace ClangReader.LanguageTranslation
         {
             string reference;
             System.Text.StringBuilder stringBuilder;
-            switch (token.name)
+            switch (token.unknownName)
             {
                 case "CompoundStmt":
                     stringBuilder = new System.Text.StringBuilder();
@@ -310,7 +310,7 @@ namespace ClangReader.LanguageTranslation
                     stringBuilder.Append("(");
                     for (int i = 1; i < token.children.Count; i++)
                     {
-                        if (token.children[i].name == "CXXDefaultArgExpr") break;
+                        if (token.children[i].unknownName == "CXXDefaultArgExpr") break;
                         if (i > 1) stringBuilder.Append(",");
                         stringBuilder.Append(GetFunctionBody(token.children[i]));
                     }
@@ -333,11 +333,11 @@ namespace ClangReader.LanguageTranslation
                     stringBuilder.Append(token.properties[1]);
                     stringBuilder.Append(" ");
                     stringBuilder.Append(token.properties[0]);
-                    if (token.attributes.Contains("cinit"))
+                    if (token.additionalAttributes.Contains("cinit"))
                     {
                         if (token.children.Count != 1)
                         {
-                            token.children = token.children.Where((tok, index) => tok.name != "FullComment").ToList();
+                            token.children = token.children.Where((tok, index) => tok.unknownName != "FullComment").ToList();
                             if (token.children.Count != 1)
                                 throw new ArgumentException();
                         }
@@ -474,7 +474,7 @@ namespace ClangReader.LanguageTranslation
                 case "VAArgExpr":   // i not sure it right
                     return "...args";
 
-                default: throw new Exception(token.name);
+                default: throw new Exception(token.unknownName);
                     //default: return "Unknown";
             }
         }
@@ -488,7 +488,7 @@ namespace ClangReader.LanguageTranslation
 
             foreach (var childToken in token.children)
             {
-                switch (childToken.name)
+                switch (childToken.unknownName)
                 {
                     case "ParmVarDecl":
                         FunctionDeclaration.Parameter parameter = null;
@@ -508,7 +508,7 @@ namespace ClangReader.LanguageTranslation
                                 type = childToken.properties[1],
                             };
                         }
-                        if (childToken.attributes.Contains("cinit"))
+                        if (token.additionalAttributes.Contains("cinit"))
                         {
                             parameter.value = GetFunctionBody(childToken.children[0]);
                         }
@@ -521,7 +521,7 @@ namespace ClangReader.LanguageTranslation
                         break;
 
                     case "FullComment": break; // ignore
-                    default: throw new Exception(childToken.name);
+                    default: throw new Exception(childToken.unknownName);
                 }
             }
 
@@ -541,7 +541,7 @@ namespace ClangReader.LanguageTranslation
 
             foreach (var childToken in token.children)
             {
-                switch (childToken.name)
+                switch (childToken.unknownName)
                 {
                     case "DefinitionData": // almost no idea how to parse it // TODO
                         break;
@@ -577,7 +577,7 @@ namespace ClangReader.LanguageTranslation
                         structure.others.Add(childToken.properties[0] + " " + childToken.properties[1]);
                         break;
 
-                    default: throw new Exception(childToken.name);
+                    default: throw new Exception(childToken.unknownName);
                 }
             }
 
@@ -630,7 +630,7 @@ namespace ClangReader.LanguageTranslation
 
             foreach (var childToken in token.children)
             {
-                switch (childToken.name)
+                switch (childToken.unknownName)
                 {
                     case "EnumConstantDecl":
                         var enumConstant = new EnumDeclaration.Property() { name = childToken.properties[0] };
@@ -645,7 +645,7 @@ namespace ClangReader.LanguageTranslation
                         break;
 
                     case "FullComment": break;
-                    default: throw new Exception(childToken.name);
+                    default: throw new Exception(childToken.unknownName);
                 }
             }
 
