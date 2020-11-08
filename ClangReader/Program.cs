@@ -121,10 +121,20 @@ namespace ClangReader
                     //| | `-DeclRefExpr 0x1f38c6b5430 <col:3> 'CPacket &(int)' lvalue CXXMethod 0x1f386e73ac8 'operator<<' 'CPacket &(int)'
                     //
                     //token.children[0]
+
+                    Console.WriteLine(prop.Name);
+
+                    var callPart = token.children[0].SerializeFriendly();
+
                     Debugger.Break();
                 }
                 else if (TryGetMethodCallWrite(token.children[2], out var name))
                 {
+                    Debugger.Break();
+                }
+                else
+                {
+                    var ser = token.SerializeFriendly();
                     Debugger.Break();
                 }
                 //var accessor = GetChildAccesor(token.children[2]);
@@ -133,6 +143,9 @@ namespace ClangReader
 
         private static bool TryGetMethodCallWrite(AstToken token, out string name)
         {
+            //ImplicitCastExpr
+
+
             name = string.Empty;
 
             DeclRefExprProperties properties = null;

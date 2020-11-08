@@ -29,6 +29,8 @@ namespace ClangReader.Lib.Ast.Models
 
     public class AstToken
     {
+        public int Line { get; set; }
+
         public string unknownName;
 
         public string offset;
