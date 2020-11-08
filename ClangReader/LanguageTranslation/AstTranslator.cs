@@ -24,34 +24,34 @@ namespace ClangReader.LanguageTranslation
             if (!token.context.sourceFile.StartsWith("<", StringComparison.InvariantCulture) &&
                 !token.context.sourceFile.StartsWith("/usr", StringComparison.InvariantCulture))
             {
-                switch (token.unknownName)
+                switch (token.Type)
                 {
-                    case "TypedefDecl":
+                    case AstType.TypedefDecl:
                         ProcessTypedef(token);
                         break;
 
-                    case "UsingDirectiveDecl":
+                    case AstType.UsingDirectiveDecl:
                         //    Console.WriteLine("    using {0}", string.Join(" ", token.properties));
                         break;
 
-                    case "VarDecl":
+                    case AstType.VarDecl:
                         ProcessVariableDeclaration(token);
                         break;
 
-                    case "FunctionDecl":
+                    case AstType.FunctionDecl:
                         ProcessFunctionDeclaration(token);
                         break;
 
-                    case "EnumDecl":
+                    case AstType.EnumDecl:
                         ProcessEnum(token);
                         break;
 
-                    case "CXXRecordDecl": // declaration of struct/class without body
+                    case AstType.CXXRecordDecl: // declaration of struct/class without body
                         ProcessStructDeclaration(token);
                         break;
 
-                    case "EmptyDecl": break;
-                    case "LinkageSpecDecl":
+                    case AstType.EmptyDecl: break;
+                    case AstType.LinkageSpecDecl:
                         foreach (var childToken in token.children)
                             ProcessMainLevelToken(childToken);
                         break;
@@ -86,29 +86,29 @@ namespace ClangReader.LanguageTranslation
 
         private static TypeDeclaration GetTypeDeclaration(AstToken token)
         {
-            switch (token.unknownName)
+            switch (token.Type)
             {
-                case "BuiltinType":
+                case AstType.BuiltinType:
                     return new TypeDeclaration() { name = token.properties[0], isBuildIn = true };
 
-                case "PointerType":
+                case AstType.PointerType:
                     var pointerDeclaration = GetTypeDeclaration(token.children[0]);
                     pointerDeclaration.isPointer = true;
                     return pointerDeclaration;
 
-                case "RecordType":
+                case AstType.RecordType:
                     return new TypeDeclaration() { name = token.properties[0] };
 
-                case "ElaboratedType":  // struct
+                case AstType.ElaboratedType:  // struct
                     return GetTypeDeclaration(token.children[0]);
 
-                case "TypedefType":
+                case AstType.TypedefType:
                     return new TypeDeclaration() { name = token.properties[0] };
 
-                case "ParenType":
-                    switch (token.children[0].unknownName)
+                case AstType.ParenType:
+                    switch (token.children[0].Type)
                     {
-                        case "FunctionProtoType":
+                        case AstType.FunctionProtoType:
                             var functionDeclaration = GetFunctionProtoDeclaration(token.children[0]);
                             functionDeclaration.name = token.properties[0];
                             functionDeclaration.isBuildIn = false;
@@ -116,18 +116,18 @@ namespace ClangReader.LanguageTranslation
 
                         default: throw new NotImplementedException(token.children[0].unknownName);
                     }
-                case "QualType": // type with modificator
+                case AstType.QualType: // type with modificator
                     return GetTypeDeclaration(token.children[0]);
 
-                case "EnumType": // type with modificator
+                case AstType.EnumType: // type with modificator
                     return new TypeDeclaration() { name = token.properties[0] };
 
-                case "...": // params
+                case AstType.NOT_PARSED when token.unknownName is "...": // params
                     return new TypeDeclaration() { name = token.unknownName };
 
-                case "TemplateSpecializationType":
+                case AstType.TemplateSpecializationType:
                     return null; // TODO
-                default: throw new NotImplementedException(token.unknownName);
+                default: throw new NotImplementedException(token.Type.ToString());
             }
         }
 
@@ -226,9 +226,9 @@ namespace ClangReader.LanguageTranslation
         {
             string reference;
             System.Text.StringBuilder stringBuilder;
-            switch (token.unknownName)
+            switch (token.Type)
             {
-                case "CompoundStmt":
+                case AstType.CompoundStmt:
                     stringBuilder = new System.Text.StringBuilder();
                     stringBuilder.AppendLine("{");
                     foreach (var childToken in token.children)
@@ -236,39 +236,39 @@ namespace ClangReader.LanguageTranslation
                     stringBuilder.AppendLine("}");
                     return stringBuilder.ToString();
 
-                case "ReturnStmt":
+                case AstType.ReturnStmt:
                     if (token.children.Count > 1) throw new ArgumentException();
                     if (token.children.Count == 0) return "return;";
                     return "return " + GetFunctionBody(token.children[0]) + ";";
-                case "ConditionalOperator":
+                case AstType.ConditionalOperator:
                     if (token.children.Count != 3) throw new ArgumentException();
                     return GetFunctionBody(token.children[0]) + "?" + GetFunctionBody(token.children[1]) + ":" + GetFunctionBody(token.children[2]);
 
-                case "ParenExpr":
+                case AstType.ParenExpr:
                     if (token.children.Count != 1) throw new ArgumentException();
                     return "(" + GetFunctionBody(token.children[0]) + ")";
 
-                case "BinaryOperator":
+                case AstType.BinaryOperator:
                     return GetFunctionBody(token.children[0]) + token.properties[token.properties.Length - 1] + GetFunctionBody(token.children[1]);
 
-                case "UnaryOperator":
+                case AstType.UnaryOperator:
                     if (token.children.Count != 1) throw new ArgumentException();
                     var operation = token.properties[1];
                     if (operation == "lvalue") operation = token.properties[2];
                     if (operation == "prefix") return token.properties[token.properties.Length - 1] + GetFunctionBody(token.children[0]);
                     else if (operation == "postfix") return GetFunctionBody(token.children[0]) + token.properties[token.properties.Length - 1];
                     else throw new ArgumentException();
-                case "ImplicitCastExpr":
+                case AstType.ImplicitCastExpr:
                     if (token.children.Count != 1) throw new ArgumentException();
                     return GetFunctionBody(token.children[0]);
 
-                case "DeclRefExpr": // variable
+                case AstType.DeclRefExpr: // variable
                     reference = token.properties[1];
                     if (reference == "lvalue")
                         return token.properties[4]; // remove quotes
                     return token.properties[3];     // remove quotes
 
-                case "InitListExpr":
+                case AstType.InitListExpr:
                     stringBuilder = new System.Text.StringBuilder();
                     stringBuilder.Append("[");
                     for (int i = 0; i < token.children.Count; i++)
@@ -279,55 +279,55 @@ namespace ClangReader.LanguageTranslation
                     stringBuilder.Append("]");
                     return stringBuilder.ToString();
 
-                case "IntegerLiteral":
+                case AstType.IntegerLiteral:
                     return token.properties[1];     // property 0 is 'int'; if this one have context - this may be define
-                case "CharacterLiteral":
+                case AstType.CharacterLiteral:
                     return token.properties[1];      // property 0 is 'char'
-                case "FloatingLiteral":
+                case AstType.FloatingLiteral:
                     return token.properties[1];      // property 0 is 'float/double'
-                case "StringLiteral":
+                case AstType.StringLiteral:
                     reference = token.properties[1];     // property 0 is 'char[...]'
                     if (reference == "lvalue")
                         return token.properties[2];
                     return token.properties[1];
 
-                case "CXXBoolLiteralExpr":
+                case AstType.CXXBoolLiteralExpr:
                     return token.properties[1];     // property 0 is 'bool'
-                case "CStyleCastExpr":
+                case AstType.CStyleCastExpr:
                     if (token.children.Count != 1) throw new ArgumentException();
                     return GetFunctionBody(token.children[0]);  // maybe need cast with parameter[0]
-                case "MemberExpr":
+                case AstType.MemberExpr:
                     if (token.children.Count != 1) throw new ArgumentException();
                     reference = token.properties[1];
                     if (reference == "lvalue")
                         return GetFunctionBody(token.children[0]) + token.properties[2];
                     return GetFunctionBody(token.children[0]) + token.properties[1];
 
-                case "CallExpr":
+                case AstType.CallExpr:
                     if (token.children.Count == 0) throw new ArgumentException();
                     stringBuilder = new System.Text.StringBuilder();
                     stringBuilder.Append(GetFunctionBody(token.children[0]));
                     stringBuilder.Append("(");
                     for (int i = 1; i < token.children.Count; i++)
                     {
-                        if (token.children[i].unknownName == "CXXDefaultArgExpr") break;
+                        if (token.children[i].Type == AstType.CXXDefaultArgExpr) break;
                         if (i > 1) stringBuilder.Append(",");
                         stringBuilder.Append(GetFunctionBody(token.children[i]));
                     }
                     stringBuilder.Append(")");
                     return stringBuilder.ToString();
 
-                case "ArraySubscriptExpr":
+                case AstType.ArraySubscriptExpr:
                     if (token.children.Count != 2) throw new ArgumentException();
                     return GetFunctionBody(token.children[0]) + "[" + GetFunctionBody(token.children[1]) + "]";
 
-                case "DeclStmt":
+                case AstType.DeclStmt:
                     stringBuilder = new System.Text.StringBuilder();
                     foreach (var childToken in token.children)
                         stringBuilder.AppendLine(GetFunctionBody(childToken));
                     return stringBuilder.ToString();
 
-                case "VarDecl":
+                case AstType.VarDecl:
                     if (token.properties.Length != 2) throw new ArgumentException();
                     stringBuilder = new System.Text.StringBuilder();
                     stringBuilder.Append(token.properties[1]);
@@ -337,7 +337,7 @@ namespace ClangReader.LanguageTranslation
                     {
                         if (token.children.Count != 1)
                         {
-                            token.children = token.children.Where((tok, index) => tok.unknownName != "FullComment").ToList();
+                            token.children = token.children.Where((tok, index) => tok.Type != AstType.FullComment).ToList();
                             if (token.children.Count != 1)
                                 throw new ArgumentException();
                         }
@@ -346,42 +346,42 @@ namespace ClangReader.LanguageTranslation
                     }
                     return stringBuilder.ToString() + ";";
 
-                case "WhileStmt":
+                case AstType.WhileStmt:
                     if (token.children.Count != 3) throw new ArgumentException();
                     return "while(" + GetFunctionBody(token.children[1]) + ")\n" + GetFunctionBody(token.children[2]);
 
-                case "DoStmt":
+                case AstType.DoStmt:
                     if (token.children.Count != 2) throw new ArgumentException();
                     return "do" + GetFunctionBody(token.children[0]) + "\nwhile(" + GetFunctionBody(token.children[1]) + ");";
 
-                case "IfStmt":
+                case AstType.IfStmt:
                     if (token.children.Count != 5) throw new ArgumentException();
                     return "if(" + GetFunctionBody(token.children[2]) + ")\n" + GetFunctionBody(token.children[3]);
 
-                case "ForStmt":
+                case AstType.ForStmt:
                     if (token.children.Count != 5) throw new ArgumentException();
                     return "for(" + GetFunctionBody(token.children[0]) + ";" + GetFunctionBody(token.children[2]) + ";" + GetFunctionBody(token.children[3]) + ")\n" + GetFunctionBody(token.children[4]);
 
-                case "GNUNullExpr": return "null";
-                case "NullStmt": return ";";
+                case AstType.GNUNullExpr: return "null";
+                case AstType.NullStmt: return ";";
 
-                case "CompoundAssignOperator":
+                case AstType.CompoundAssignOperator:
                     if (token.children.Count != 2) throw new ArgumentException();
                     reference = token.properties[1];
                     if (reference == "lvalue")
                         return GetFunctionBody(token.children[0]) + token.properties[2] + GetFunctionBody(token.children[1]);
                     return GetFunctionBody(token.children[0]) + token.properties[1] + GetFunctionBody(token.children[1]);
 
-                case "UnaryExprOrTypeTraitExpr":
+                case AstType.UnaryExprOrTypeTraitExpr:
                     if (token.properties.Length == 3)
                         return token.properties[1] + "(" + token.properties[2] + ")";
                     if (token.children.Count != 1) throw new ArgumentException();
                     return token.properties[1] + GetFunctionBody(token.children[0]);
 
-                case "BreakStmt": return "break;";
-                case "ContinueStmt": return "continue;";
-                case "GotoStmt": return "goto " + token.properties[0] + ";";
-                case "LabelStmt":
+                case AstType.BreakStmt: return "break;";
+                case AstType.ContinueStmt: return "continue;";
+                case AstType.GotoStmt: return "goto " + token.properties[0] + ";";
+                case AstType.LabelStmt:
                     stringBuilder = new System.Text.StringBuilder();
                     stringBuilder.Append(token.properties[0]);
                     stringBuilder.AppendLine(":");
@@ -389,19 +389,19 @@ namespace ClangReader.LanguageTranslation
                         stringBuilder.AppendLine(GetFunctionBody(childToken));
                     return stringBuilder.ToString();
 
-                case "ExprWithCleanups":            // i not sure about this one
+                case AstType.ExprWithCleanups:            // i not sure about this one
                     if (token.children.Count != 1) throw new ArgumentException();
                     return GetFunctionBody(token.children[0]);
 
-                case "CXXConstructExpr":            // i not sure about this one
+                case AstType.CXXConstructExpr:            // i not sure about this one
                     if (token.children.Count != 1) throw new ArgumentException();
                     return GetFunctionBody(token.children[0]);
 
-                case "MaterializeTemporaryExpr":    // i not sure about this one
+                case AstType.MaterializeTemporaryExpr:    // i not sure about this one
                     if (token.children.Count != 1) throw new ArgumentException();
                     return GetFunctionBody(token.children[0]);
 
-                case "CXXMemberCallExpr":           // i not sure about this one
+                case AstType.CXXMemberCallExpr:           // i not sure about this one
                     stringBuilder = new System.Text.StringBuilder();
                     stringBuilder.Append(GetFunctionBody(token.children[0]));
                     stringBuilder.Append("(");
@@ -414,19 +414,19 @@ namespace ClangReader.LanguageTranslation
                     stringBuilder.Append(")");
                     return stringBuilder.ToString();
 
-                case "CXXOperatorCallExpr":           // i not sure about this one
+                case AstType.CXXOperatorCallExpr:           // i not sure about this one
                     if (token.children.Count == 3)
                         return GetFunctionBody(token.children[1]) + GetFunctionBody(token.children[0]) + GetFunctionBody(token.children[2]);
                     else if (token.children.Count == 2)
                         return GetFunctionBody(token.children[1]) + GetFunctionBody(token.children[0]);
                     else throw new ArgumentException();
 
-                case "ImplicitValueInitExpr":   // don't know what to do
+                case AstType.ImplicitValueInitExpr:   // don't know what to do
                     if (token.children.Count != 0)
                         throw new ArgumentException();
                     return "";
 
-                case "SwitchStmt":
+                case AstType.SwitchStmt:
                     if (token.children.Count != 4) throw new ArgumentException();
                     stringBuilder = new System.Text.StringBuilder();
                     stringBuilder.Append("switch(");
@@ -435,7 +435,7 @@ namespace ClangReader.LanguageTranslation
                     stringBuilder.Append(GetFunctionBody(token.children[3]));
                     return stringBuilder.ToString();
 
-                case "CaseStmt":
+                case AstType.CaseStmt:
                     if (token.children.Count != 3) throw new ArgumentException();
                     stringBuilder = new System.Text.StringBuilder();
                     stringBuilder.Append("case:");
@@ -443,38 +443,38 @@ namespace ClangReader.LanguageTranslation
                     stringBuilder.Append(GetFunctionBody(token.children[2]));
                     return stringBuilder.ToString();
 
-                case "DefaultStmt":
+                case AstType.DefaultStmt:
                     stringBuilder = new System.Text.StringBuilder();
                     for (int i = 0; i < token.children.Count; i++)
                         stringBuilder.Append(GetFunctionBody(token.children[i]));
                     return stringBuilder.ToString();
 
-                case "array": return ""; // no idea what to do...
-                case "CXXCastExpr":
+                case AstType.ArrayType: return ""; // no idea what to do...
+                case AstType.CxxCastExpr:
                     if (token.children.Count != 1) throw new ArgumentException();
                     return GetFunctionBody(token.children[0]);
 
-                case "CXXFunctionalCastExpr":   // i not sure it works right
+                case AstType.CXXFunctionalCastExpr:   // i not sure it works right
                     return "(" + token.properties[0] + ")";
 
-                case "PredefinedExpr":     // i not sure it works right
+                case AstType.PredefinedExpr:     // i not sure it works right
                     operation = token.properties[1];
                     if (operation == "lvalue") operation = token.properties[2];
                     return operation;
 
-                case "<<<NULL>>>":
+                case AstType.NULL:
                     return "";
 
-                case "GCCAsmStmt":
+                case AstType.GCCAsmStmt:
                     stringBuilder = new System.Text.StringBuilder();
                     for (int i = 0; i < token.children.Count; i++)
                         stringBuilder.Append(GetFunctionBody(token.children[i]));
                     return stringBuilder.ToString();
 
-                case "VAArgExpr":   // i not sure it right
+                case AstType.VAArgExpr:   // i not sure it right
                     return "...args";
 
-                default: throw new Exception(token.unknownName);
+                default: throw new Exception(token.unknownName + " " + token.Type.ToString());
                     //default: return "Unknown";
             }
         }
@@ -488,9 +488,9 @@ namespace ClangReader.LanguageTranslation
 
             foreach (var childToken in token.children)
             {
-                switch (childToken.unknownName)
+                switch (childToken.Type)
                 {
-                    case "ParmVarDecl":
+                    case AstType.ParmVarDecl:
                         FunctionDeclaration.Parameter parameter = null;
                         if (childToken.properties.Length == 1)
                         {
@@ -516,11 +516,11 @@ namespace ClangReader.LanguageTranslation
                         function.parameters.Add(parameter);
                         break;
 
-                    case "CompoundStmt":
+                    case AstType.CompoundStmt:
                         function.body = GetFunctionBody(childToken);
                         break;
 
-                    case "FullComment": break; // ignore
+                    case AstType.FullComment: break; // ignore
                     default: throw new Exception(childToken.unknownName);
                 }
             }
@@ -541,16 +541,16 @@ namespace ClangReader.LanguageTranslation
 
             foreach (var childToken in token.children)
             {
-                switch (childToken.unknownName)
+                switch (childToken.Type)
                 {
-                    case "DefinitionData": // almost no idea how to parse it // TODO
+                    case AstType.DefinitionData: // almost no idea how to parse it // TODO
                         break;
 
-                    case "CXXRecordDecl":
+                    case AstType.CXXRecordDecl:
                         structure.subStructures.Add(GetStructDeclaration(childToken));
                         break;
 
-                    case "FieldDecl":
+                    case AstType.FieldDecl:
                         structure.properties.Add(new StructureDeclaration.Property()
                         {
                             name = childToken.properties[0],
@@ -558,22 +558,22 @@ namespace ClangReader.LanguageTranslation
                         });
                         break;
 
-                    case "public":  // TODO
+                    case AstType.Public:  // TODO
                         break;
 
-                    case "FullComment": // ignore this. or TODO if you wish
+                    case AstType.FullComment: // ignore this. or TODO if you wish
                         break;
 
-                    case "AccessSpecDecl": // TODO local modificator based on properties[0]
+                    case AstType.AccessSpecDecl: // TODO local modificator based on properties[0]
                         break;
 
-                    case "CXXConstructorDecl":  // TODO
+                    case AstType.CXXConstructorDecl:  // TODO
                         break;
 
-                    case "CXXDestructorDecl":  // TODO
+                    case AstType.CXXDestructorDecl:  // TODO
                         break;
 
-                    case "CXXMethodDecl":  // TODO
+                    case AstType.CXXMethodDecl:  // TODO
                         structure.others.Add(childToken.properties[0] + " " + childToken.properties[1]);
                         break;
 
@@ -630,9 +630,9 @@ namespace ClangReader.LanguageTranslation
 
             foreach (var childToken in token.children)
             {
-                switch (childToken.unknownName)
+                switch (childToken.Type)
                 {
-                    case "EnumConstantDecl":
+                    case AstType.EnumConstantDecl:
                         var enumConstant = new EnumDeclaration.Property() { name = childToken.properties[0] };
                         if (childToken.children.Count > 0)
                         {
@@ -644,7 +644,7 @@ namespace ClangReader.LanguageTranslation
                         enumDeclaration.properties.Add(enumConstant);
                         break;
 
-                    case "FullComment": break;
+                    case AstType.FullComment: break;
                     default: throw new Exception(childToken.unknownName);
                 }
             }

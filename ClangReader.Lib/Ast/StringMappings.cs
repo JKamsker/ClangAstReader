@@ -545,7 +545,11 @@ namespace ClangReader.Lib.Ast
                 { "TextComment", AstType.TextComment },
                 { "VerbatimLineComment", AstType.VerbatimLineComment },
                 { "BlockCommandComment", AstType.BlockCommandComment },
-                { "ParamCommandComment", AstType.ParamCommandComment }
+                { "ParamCommandComment", AstType.ParamCommandComment },
+
+                { "CXXCastExpr", AstType.CxxCastExpr },
+
+
 
 
             };

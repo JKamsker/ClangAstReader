@@ -75,7 +75,7 @@ namespace ClangReader
             var rootTokens = reader.Parse(new TypeBasedFilterInterceptor(AstType.CXXMethodDecl));
             sw.Stop();
             Console.WriteLine($"Parsing took {sw.Elapsed.TotalMilliseconds} ms");
-    
+
             foreach (var methodDecl in rootTokens.SelectMany(x => x.children))
             {
                 var methodName = methodDecl.properties.FirstOrDefault();
@@ -101,7 +101,6 @@ namespace ClangReader
                 Debugger.Break();
             }
 
-            
             return;
         }
 
@@ -119,6 +118,12 @@ namespace ClangReader
 
             if (IsPacketShiftExpression(token))
             {
+                //Type from token.children[0]
+                //
+                //|-CXXOperatorCallExpr 0x1f38c6b5468 <line:2997:2, line:3005:6> 'CPacket' lvalue '<<'
+                //| |-ImplicitCastExpr 0x1f38c6b5450 <col:3> 'CPacket &(*)(int)' <FunctionToPointerDecay>
+                //| | `-DeclRefExpr 0x1f38c6b5430 <col:3> 'CPacket &(int)' lvalue CXXMethod 0x1f386e73ac8 'operator<<' 'CPacket &(int)'
+
                 if (TryGetPacketWriteOverloadType(token.children[0], out var typeName))
                 {
                     Console.Write($"Write type : {typeName} Name: ");
@@ -126,14 +131,6 @@ namespace ClangReader
 
                 if (token.children.Count > 1 && TryGetSimpleWriteFromVar(token.children[2], out var prop))
                 {
-                    //Type from
-                    //
-                    //|-CXXOperatorCallExpr 0x1f38c6b5468 <line:2997:2, line:3005:6> 'CPacket' lvalue '<<'
-                    //| |-ImplicitCastExpr 0x1f38c6b5450 <col:3> 'CPacket &(*)(int)' <FunctionToPointerDecay>
-                    //| | `-DeclRefExpr 0x1f38c6b5430 <col:3> 'CPacket &(int)' lvalue CXXMethod 0x1f386e73ac8 'operator<<' 'CPacket &(int)'
-                    //
-                    //token.children[0]
-
                     Console.Write(prop.Name);
 
                     //var callPart = token.children[0].SerializeFriendly();

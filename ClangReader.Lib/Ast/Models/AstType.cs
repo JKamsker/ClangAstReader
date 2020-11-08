@@ -478,6 +478,9 @@
         TextComment,
         VerbatimLineComment,
         BlockCommandComment,
-        ParamCommandComment
+        ParamCommandComment,
+
+
+        CxxCastExpr,
     }
 }
