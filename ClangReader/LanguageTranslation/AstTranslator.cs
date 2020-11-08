@@ -196,17 +196,17 @@ namespace ClangReader.LanguageTranslation
                 type = token.properties[1],
             };
 
-            if (token.additionalAttributes.Contains("cinit"))
+            if (token.Attributes.HasFlag(AstAttributes.CInit) )
             {
                 variable.value = GetFunctionBody(token.children[0]);
             }
 
-            if (token.additionalAttributes.Contains(""))
+            if (token.Attributes.HasFlag(AstAttributes.Extern) )
             {
                 variable.isExtern = true;
             }
 
-            if (token.additionalAttributes.Contains("extern"))
+            if (token.Attributes.HasFlag(AstAttributes.Extern) )
             {
                 variable.isExtern = true;
             }
@@ -333,7 +333,7 @@ namespace ClangReader.LanguageTranslation
                     stringBuilder.Append(token.properties[1]);
                     stringBuilder.Append(" ");
                     stringBuilder.Append(token.properties[0]);
-                    if (token.additionalAttributes.Contains("cinit"))
+                    if (token.Attributes.HasFlag(AstAttributes.CInit) )
                     {
                         if (token.children.Count != 1)
                         {
@@ -508,7 +508,7 @@ namespace ClangReader.LanguageTranslation
                                 type = childToken.properties[1],
                             };
                         }
-                        if (token.additionalAttributes.Contains("cinit"))
+                        if (token.Attributes.HasFlag(AstAttributes.CInit) )
                         {
                             parameter.value = GetFunctionBody(childToken.children[0]);
                         }

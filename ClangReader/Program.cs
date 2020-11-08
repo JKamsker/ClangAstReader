@@ -98,6 +98,8 @@ namespace ClangReader
 
                 VisitTest(methodDecl);
 
+
+
                 Debugger.Break();
             }
 
@@ -147,10 +149,12 @@ namespace ClangReader
                 {
                     Console.Write("Unknown");
 
+                    var bdy = AstTranslator.GetFunctionBody(token.children[2]);
+
                     //var wholeBodySerialization = token.SerializeFriendly();
-                    //var relevant = token.AsTokenDto();
-                    //relevant.Children[1] = new AstTokenDto();
-                    //var reser = relevant.SerializeFriendly();
+                    var relevant = token.AsTokenDto();
+                    relevant.Children[1] = new AstTokenDto();
+                    var reser = relevant.SerializeFriendly();
 
                     //Debugger.Break();
                 }
