@@ -92,7 +92,7 @@ namespace ClangReader.Lib.Ast
             AstToken currentRoot = null;
             var rootTokens = new List<AstToken>();
 
-            var enumerable = fastReader.ReadLine();
+            IEnumerable<ReadOnlyListEx<char>> enumerable = fastReader.ReadLine();
 
             var lineCounter = 0;
             using var enumerator = enumerable.GetEnumerator();
@@ -124,14 +124,14 @@ namespace ClangReader.Lib.Ast
                 if (lineDepth == 1 && token.Type != AstKnownSuffix.CXXMethodDecl)
                 {
                     var lineReadOk = true;
-                    var tempDepth = lineDepth+1;
+                    var tempDepth = lineDepth + 1;
 
                     while (lineDepth < tempDepth && lineReadOk)
                     {
                         lineReadOk = enumerator.MoveNext();
                         rawLine = enumerator.Current.ArraySegment;
                         lineCounter++;
-                        AstTokenParserUtils.GetEssentialPart(rawLine, out tempDepth, out _);
+                        tempDepth = AstTokenParserUtils.GetLineDepth(rawLine);
                     }
 
                     if (lineReadOk)
@@ -141,10 +141,104 @@ namespace ClangReader.Lib.Ast
 
                     return rootTokens;
                 }
-              
 
                 currentRoot.AddChild(token, lineDepth - 1);
             }
+
+            return rootTokens;
+        }
+
+        public List<AstToken> Parse_02()
+        {
+            var fastReader = new FastLineReader(_filePath);
+            var readerContext = new AstFileReaderContext(fastReader.ReadLine());
+
+            AstToken currentRoot = null;
+            var rootTokens = new List<AstToken>();
+
+            foreach (var rawLine in readerContext)
+            {
+                AstTokenParserUtils.GetEssentialPart(rawLine, out var lineDepth, out var line);
+                if (lineDepth == 0)
+                {
+                    currentRoot = new AstToken(true);
+                    AstTokenParserUtils.ParseTokenDescription(currentRoot, line);
+                    rootTokens.Add(currentRoot);
+                    //item.MarkAsProcessed();
+                    continue;
+                }
+
+                if (currentRoot == null)
+                {
+                    currentRoot = new AstToken(true) { unknownName = "Unknown" };
+                    rootTokens.Add(currentRoot);
+                }
+
+                var token = new AstToken(true);
+                AstTokenParserUtils.ParseTokenDescription(token, line);
+                if (lineDepth == 1 && token.Type != AstKnownSuffix.CXXMethodDecl)
+                {
+                    readerContext.SkipSubTree();
+                    continue;
+                }
+
+                currentRoot.AddChild(token, lineDepth - 1);
+            }
+
+            // var tokenizer = new FastAstTokenizer(fastReader);
+
+            //IEnumerable<ReadOnlyListEx<char>> enumerable = fastReader.ReadLine();
+
+            //var lineCounter = 0;
+            //using var enumerator = enumerable.GetEnumerator();
+            //while (enumerator.MoveNext())
+            //{
+            //    lineCounter++;
+            //    loop_enter:
+
+            //    var rawLine = enumerator.Current.ArraySegment;
+            //    AstTokenParserUtils.GetEssentialPart(rawLine, out var lineDepth, out var line);
+            //    if (lineDepth == 0)
+            //    {
+            //        currentRoot = new AstToken(true);
+            //        AstTokenParserUtils.ParseTokenDescription(currentRoot, line);
+            //        rootTokens.Add(currentRoot);
+            //        //item.MarkAsProcessed();
+            //        continue;
+            //    }
+
+            //    if (currentRoot == null)
+            //    {
+            //        currentRoot = new AstToken(true) { unknownName = "Unknown" };
+            //        rootTokens.Add(currentRoot);
+            //    }
+
+            //    var token = new AstToken(true);
+            //    AstTokenParserUtils.ParseTokenDescription(token, line);
+
+            //    if (lineDepth == 1 && token.Type != AstKnownSuffix.CXXMethodDecl)
+            //    {
+            //        var lineReadOk = true;
+            //        var tempDepth = lineDepth + 1;
+
+            //        while (lineDepth < tempDepth && lineReadOk)
+            //        {
+            //            lineReadOk = enumerator.MoveNext();
+            //            rawLine = enumerator.Current.ArraySegment;
+            //            lineCounter++;
+            //            tempDepth = AstTokenParserUtils.GetLineDepth(rawLine);
+            //        }
+
+            //        if (lineReadOk)
+            //        {
+            //            goto loop_enter;
+            //        }
+
+            //        return rootTokens;
+            //    }
+
+            //    currentRoot.AddChild(token, lineDepth - 1);
+            //}
 
             return rootTokens;
         }

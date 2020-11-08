@@ -26,7 +26,7 @@ namespace ClangReader.Lib.Extensions
             }
         }
 
-        public static IEnumerable<T> TakeWhile<T>(this IEnumerable<T> input, Func<T, bool> predicate)
+        public static IEnumerable<T> TakeWhile<T>( IEnumerable<T> input, Func<T, bool> predicate)
         {
             foreach (var value in input)
             {

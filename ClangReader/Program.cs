@@ -20,6 +20,7 @@ using System.Threading.Tasks;
 using ClangReader.LanguageTranslation;
 using ClangReader.Lib.Ast;
 using ClangReader.Lib.Ast.Models;
+using ClangReader.Lib.Collections;
 using ClangReader.Lib.Extensions;
 using ClangReader.Pipelined;
 using ClangReader.Tests;
@@ -237,11 +238,11 @@ namespace ClangReader
 
         private static void DoAstProcessing()
         {
-            var forbidden = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            var forbidden = new HashSet<AstKnownSuffix>()
             {
-                "WhileStmt",
-                "ForStmt",
-                "DoStmt",
+                AstKnownSuffix.WhileStmt,
+                AstKnownSuffix.ForStmt,
+                AstKnownSuffix.DoStmt,
             };
 
             ProcessFile(forbidden, @"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast");
@@ -250,79 +251,183 @@ namespace ClangReader
             Console.ReadKey();
         }
 
-        private static void ProcessFile(HashSet<string> forbidden, string file)
+        private static void ProcessFile(HashSet<AstKnownSuffix> forbidden, string file)
         {
             var sw = Stopwatch.StartNew();
             var reader = new AstFileReader(file);
-            var rootTokens = reader.Parse_01();
-            //reader.ParseAsync().Wait();
-            //sw.Stop();
-            //Console.WriteLine(sw.Elapsed.TotalMilliseconds);
-            //return;
+            var rootTokens = reader.Parse_02();
 
-            //AstTextFile dumpFile = new AstTextFile(file);
+            foreach (var methodDecl in rootTokens.SelectMany(x => x.children))
+            {
+                var methodName = methodDecl.properties.FirstOrDefault();
+                // Console.WriteLine(methodName);
+                if (methodName != "SendCS_FINISHSKILL_ACK")
+                {
+                    continue;
+                }
+
+                // Should be able to handle all later...
+                var saidMsg = GetVariableThatGetsSaid(methodDecl).FirstOrDefault();
+                if (saidMsg == null)
+                {
+                    Console.WriteLine("\tNo message said");
+                    return;
+                }
+                //ProcessMethod(forbidden, methodDecl, saidMsg);
+
+                var ser = methodDecl.SerializeFriendly();
+
+                VisitTest(methodDecl);
+
+                Debugger.Break();
+            }
+
             sw.Stop();
             Console.WriteLine(sw.Elapsed.TotalMilliseconds);
             return;
-            //string astDumpPath = "/home/misha/Projects/cache/functionExecute.cpp.dump";
-            //string astDumpPath = "F:/cache/jsmn.cpp.dump";
-            //AstTextFile dumpFile = new AstTextFile(astDumpPath);
-
-            //foreach (var rootToken in dumpFile.rootTokens)
-            //{
-            //    var methodDecls = rootToken.children
-            //        .Where(x => x.name == "CXXMethodDecl")
-            //        .Where(x => x.context.sourceFile?.EndsWith("TNetSender.cpp") == true || x.context.sourceFile?.Contains("CSSender") == true)
-            //        .ToList();
-
-            //    foreach (var methodDecl in methodDecls)
-            //    {
-            //        Console.WriteLine();
-            //        Console.WriteLine();
-            //        ProcessMethod(forbidden, methodDecl);
-            //    }
-            //}
         }
 
-        private static void ProcessMethod(HashSet<string> forbidden, AstToken methodDecl)
+        private static void VisitTest(AstToken token)
         {
-            //  var meth = JsonConvert.SerializeObject(methodDecl.AsTokenDto(),Formatting.Indented);
+            //Console.WriteLine($"{prefix}{token.Type}");
+            foreach (var child in token.children)
+            {
+                VisitTest(child);
+            }
 
-            var methodName = methodDecl.properties.FirstOrDefault();
-            Console.WriteLine($"Name: {methodName}");
+            if (IsPacketShiftExpression(token))
+            {
+                if (token.children.Count > 1 && TryGetSimpleWriteFromVar(token.children[2], out var prop))
+                {
+                    //Type from
+                    //
+                    //|-CXXOperatorCallExpr 0x1f38c6b5468 <line:2997:2, line:3005:6> 'CPacket' lvalue '<<'
+                    //| |-ImplicitCastExpr 0x1f38c6b5450 <col:3> 'CPacket &(*)(int)' <FunctionToPointerDecay>
+                    //| | `-DeclRefExpr 0x1f38c6b5430 <col:3> 'CPacket &(int)' lvalue CXXMethod 0x1f386e73ac8 'operator<<' 'CPacket &(int)'
+                    //
+                    //token.children[0]
+                    Debugger.Break();
+                }
+                else if (TryGetMethodCallWrite(token.children[2], out var name))
+                {
+                    Debugger.Break();
+                }
+                //var accessor = GetChildAccesor(token.children[2]);
+            }
+        }
 
-            if (methodName == "SendCS_FINISHSKILL_ACK")
+        private static bool TryGetMethodCallWrite(AstToken token, out string name)
+        {
+            name = string.Empty;
+
+            DeclRefExprProperties properties = null;
+            switch (token.Type)
+            {
+                case AstKnownSuffix.MemberExpr when token.properties[0] == "<bound member function type>":
+                    name = token.properties[1];
+                    name = name.TrimStart("->").TrimStart("Get");
+                    return true;
+
+                case AstKnownSuffix.CXXMemberCallExpr:
+                    foreach (var tokenChild in token.children)
+                    {
+                        if (TryGetMethodCallWrite(tokenChild, out name))
+                        {
+                            return true;
+                        }
+                    }
+                    break;
+
+                default:
+                    break;
+            }
+            return false;
+            return false;
+        }
+
+        private static bool IsPacketShiftExpression(AstToken token)
+        {
+            return token.Type == AstKnownSuffix.CXXOperatorCallExpr && token.properties.Length <= 3 && (token.properties[2] == "<<" || token.properties[2] == "'<<'");
+        }
+
+        private static bool TryGetSimpleWriteFromVar(AstToken token, out DeclRefExprProperties properties)
+        {
+            properties = null;
+            switch (token.Type)
+            {
+                case AstKnownSuffix.DeclRefExpr when token.children.Count == 0:
+                    properties = new DeclRefExprProperties(token);
+                    return true;
+
+                case AstKnownSuffix.CXXOperatorCallExpr when IsPacketShiftExpression(token):
+                case AstKnownSuffix.ImplicitCastExpr:
+                    foreach (var tokenChild in token.children)
+                    {
+                        if (TryGetSimpleWriteFromVar(tokenChild, out properties))
+                        {
+                            return true;
+                        }
+                    }
+                    break;
+
+                default:
+                    break;
+            }
+            return false;
+        }
+
+        private static DeclRefExprProperties GetChildAccesor(AstToken token)
+        {
+            if (token.Type == AstKnownSuffix.DeclRefExpr && token.children.Count == 0)
+            {
+                return new DeclRefExprProperties(token);
+            }
+
+            if (token.Type == AstKnownSuffix.MemberExpr && token.children.Count > 0 && token.properties[0] == "<bound member function type>")
+            {
+                var func = token.properties[1];
+                //Debugger.Break();
+            }
+
+            if (token.Type == AstKnownSuffix.CXXMemberCallExpr)
             {
                 Debugger.Break();
             }
 
-            var saidMsg = GetVariableThatGetsSaid(methodDecl).FirstOrDefault();
-            if (saidMsg == null)
+            foreach (var tokenChild in token.children)
             {
-                Console.WriteLine("\tNo message said");
-                return;
+                var accessor = GetChildAccesor(tokenChild);
+                if (accessor != null)
+                {
+                    return accessor;
+                }
             }
 
-            var usages = GetUsages(saidMsg, methodDecl)
-                // .Where(x => x.TraverseParents(true).Any(m => m.name == "MemberExpr" && m.properties.Contains(".SetID")))
-                .ToList();
+            return null;
+        }
 
+        private static void ProcessMethod(HashSet<AstKnownSuffix> forbidden, AstToken methodDecl, DeclRefExprProperties saidMsg)
+        {
+            // Should be able to handle all later...
+            var usages = GetUsages(saidMsg, methodDecl).ToList();
             foreach (var usage in usages)
             {
-                //var allParents = usage.parent.TraverseParents().ToList();
-                var parentsInMethod = EnumerableExtensions.TakeWhile(usage.parent
-                        .TraverseParents(), x => x != methodDecl)
+                var parentsInMethod = usage.parent.TraverseParents()
+                    .TakeWhile(x => x != methodDecl)
                     .ToList();
 
-                var goodParents = parentsInMethod
-                    .Where(x => x.unknownName == "CXXOperatorCallExpr")
+                var allOperatorExpressions = parentsInMethod
+                    .Where(x => x.Type == AstKnownSuffix.CXXOperatorCallExpr)
                     .Where(x => x.properties.Length == 3 && (x.properties[2] == "<<" || x.properties[2] == "'<<'"))
+                    .ToList();
+
+                var goodParents = allOperatorExpressions
                     .Where(x => x.children.Count == 3)
                     .ToList();
 
                 foreach (var parent in goodParents)
                 {
-                    var decl = parent.children[2].VisitEnumerable(x => x.unknownName == "DeclRefExpr").FirstOrDefault();
+                    var decl = parent.children[2].VisitEnumerable(x => x.Type == AstKnownSuffix.DeclRefExpr).FirstOrDefault();
                     if (decl == null)
                     {
                         continue;
@@ -332,70 +437,37 @@ namespace ClangReader
 
                     Console.WriteLine($"\t[{properties.InstanceId}] {properties.Name} ({properties.Type})");
 
-                    var illegalOperation = EnumerableExtensions.TakeWhile(decl.TraverseParents(), x => x != methodDecl).FirstOrDefault(x => forbidden.Contains(x.unknownName));
+                    var illegalOperation = EnumerableExtensions.TakeWhile(decl.TraverseParents(), x => x != methodDecl).FirstOrDefault(x => forbidden.Contains(x.Type));
                     if (illegalOperation != null)
                     {
-                        Console.WriteLine($"\tIllegal operation - {illegalOperation.unknownName}");
+                        Console.WriteLine($"\tIllegal operation - {illegalOperation.Type}");
 
-                        DebugNodes(EnumerableExtensions.TakeWhile(decl.TraverseParents(), x => x != methodDecl));
+                        DebugNodes(decl.TraverseParents().TakeWhile(x => x != methodDecl));
 
                         Console.WriteLine();
                     }
                 }
             }
-
-            //var found = new List<AstToken>();
-            //methodDecl.Visit
-            //(
-
-            //    x => (x.name == "DeclRefExpr" && x.properties[2] == "ParmVar"),
-            //    x => found.Add(x)
-            //);
-
-            //ProcessSetInstruction(methodDecl);
-
-            //var compounts = found.Select(x => new
-            //{
-            //    Name = x.properties[4],
-            //    Type = x.properties[5],
-            //    Ast = x
-            //}).ToList();
-
-            //foreach (var compount in compounts)
-            //{
-            //    var illegalStatement = compount.Ast.TraverseParents().FirstOrDefault(x => forbidden.Contains(x.name));
-
-            //    var addition = illegalStatement != null ? $"- Illegal statement found: {illegalStatement.name}" : string.Empty;
-            //    Console.WriteLine($"\t{compount.Name} - {compount.Type} {addition}");
-
-            //    if (addition != string.Empty)
-            //    {
-            //        //foreach (var cAst in compount.Ast.TraverseParents())
-            //        //{
-            //        //    try
-            //        //    {
-            //        //        Console.WriteLine();
-            //        //    }
-            //        //    catch (Exception e)
-            //        //    {
-            //        //    }
-            //        //}
-
-            //        Console.WriteLine();
-            //        Debugger.Break();
-            //    }
-            //}
         }
 
         private static void DebugNodes(IEnumerable<AstToken> parents)
         {
+            // parents.First().parent.parent.parent == par
+            /*	for (BYTE i = 0; i < (BYTE) vTarget.size(); ++i)
+            {
+	            pMSG
+		            << vTarget[i]->m_dwID <---
+		            << vTarget[i]->m_bType;
+            }
+            */
+
             foreach (var par in parents)
             {
                 try
                 {
                     var json = par.SerializeFriendly();
-                    var translated = AstTranslator.GetFunctionBody(par);
-                    // Debugger.Break();
+                    //var translated = AstTranslator.GetFunctionBody(par);
+                    Debugger.Break();
                 }
                 catch (Exception e)
                 {
@@ -407,7 +479,7 @@ namespace ClangReader
         {
             return methodDecl.VisitEnumerable
             (
-                x => x.unknownName == "DeclRefExpr" && new DeclRefExprProperties(x).Equals(saidMsg)
+                x => x.Type == AstKnownSuffix.DeclRefExpr && new DeclRefExprProperties(x).Equals(saidMsg)
             );
         }
 
@@ -415,16 +487,16 @@ namespace ClangReader
         {
             var memberExpressions = methodDecl.VisitEnumerable
             (
-                x => x.unknownName == "MemberExpr" && x.parent.unknownName == "CXXMemberCallExpr" && x.properties.Contains("->Say")
+                x => x.Type == AstKnownSuffix.MemberExpr && x.parent.Type == AstKnownSuffix.CXXMemberCallExpr && x.properties.Contains("->Say")
             );
 
             foreach (var memberExpression in memberExpressions)
             {
                 var otherchildren = memberExpression.parent
-                    .VisitEnumerable(x => x != memberExpression)
-                    .Where(x => x.unknownName == "DeclRefExpr")
-                    .Select(x => new DeclRefExprProperties(x))
-                    .ToList()
+                        .VisitEnumerable(x => x != memberExpression)
+                        .Where(x => x.Type == AstKnownSuffix.DeclRefExpr)
+                        .Select(x => new DeclRefExprProperties(x))
+                        .ToList()
                     ;
 
                 //Just take the last one
@@ -436,127 +508,9 @@ namespace ClangReader
                 else
                 {
                     //Multiple (path: pSession->Say( &vMSG ))
-
                     yield return otherchildren.FirstOrDefault(x => x.Token.properties[0] == "CPacket");
                 }
-
-                //if (otherchildren.Count > 1)
-                //{
-                //    throw new NotSupportedException("Multiple decls are not supported");
-                //}
-
-                //if (otherchildren.Count == 1)
-                //{
-                //}
             }
         }
-
-        private static void ProcessSetInstruction(AstToken methodDecl)
-        {
-            var setId = methodDecl.VisitEnumerable(x => x.unknownName == "MemberExpr" && x.properties.Contains(".SetID")).FirstOrDefault();
-
-            if (setId != null)
-            {
-                var literals = setId.parent.VisitEnumerable(x => x.unknownName == "BinaryOperator");
-                foreach (var literal in literals)
-                {
-                    var exp = literal.AsExpression();
-                    Console.WriteLine($"Set: {exp}");
-                }
-            }
-        }
-
-        //private static void Visit(AstToken token, Func<AstToken, bool> predicate, Action<AstToken> onFound)
-        //{
-        //    foreach (var tokenChild in token.children)
-        //    {
-        //        if (predicate(tokenChild))
-        //        {
-        //            onFound(tokenChild);
-        //        }
-        //        Visit(tokenChild, predicate, onFound);
-        //    }
-        //}
-
-        //private static IEnumerable<AstToken> VisitEnumerable(AstToken token, Func<AstToken, bool> predicate)
-        //{
-        //    foreach (var tokenChild in token.children)
-        //    {
-        //        if (predicate(tokenChild))
-        //        {
-        //            yield return tokenChild;
-        //        }
-        //        var results = VisitEnumerable(tokenChild, predicate);
-        //        foreach (var astToken in results)
-        //        {
-        //            yield return astToken;
-        //        }
-        //    }
-        //}
     }
 }
-
-//Console.WriteLine(typeof(string).Assembly.FullName);
-//Console.WriteLine(typeof(string).Assembly.Location);
-
-//var fastAlloc = (Func<int, string>)typeof(String)
-//    .GetMethod("FastAllocateString", BindingFlags.Static | BindingFlags.NonPublic)
-//    .CreateDelegate(typeof(Func<int, string>))
-//    ;
-
-//var res = fastAlloc(20);
-//var asrefed = Unsafe.AsRef<char>(res.GetPinnableReference());
-
-//var constructor = typeof(Span<>)
-//        .GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance)
-//    ;
-
-////var ins = constructor.First();
-////var obj = ins.Invoke(ref res.GetPinnableReference());
-
-//var shared = MemoryPool<byte>.Shared.Rent(1024);
-//var memory = shared.Memory;
-//var span = memory.Span;
-
-//var str = new ArraySegment<char>("asdf".ToCharArray());
-
-//var str1 = str.ToString();
-//var str2 = string.Concat(str.AsSpan(), str.AsSpan());
-
-//while (true)
-//{
-//    var sw1 = Stopwatch.StartNew();
-//    for (int i = 0; i < 100_000_000; i++)
-//    {
-//        var as1 = memory.AsArraySegment();
-//    }
-//    sw1.Stop();
-//    Console.WriteLine(sw1.Elapsed.TotalMilliseconds);
-
-//    var sw2 = Stopwatch.StartNew();
-//    for (int i = 0; i < 100_000_000; i++)
-//    {
-//        var ok = MemoryMarshal.TryGetArray(memory, out ArraySegment<byte> as2);
-//    }
-//    sw2.Stop();
-//    Console.WriteLine(sw2.Elapsed.TotalMilliseconds);
-//    Console.WriteLine();
-//    Thread.Sleep(1000);
-//}
-
-//span.GetDjb2HashCode();
-
-////var sp1 = "henlo".AsSpan();
-////var sp2 = "henlo".AsSpan();
-////var sw = Stopwatch.StartNew();
-////for (int i = 0; i < 1_000_000_000; i++)
-////{
-////    sp1.GetDjb2HashCode();
-////}
-////sw.Stop();
-////Console.WriteLine(sw.Elapsed.TotalMilliseconds);
-////DoAstProcessing();
-
-//Console.ReadLine();
-//return;
-////await PerfTestMultiThreaded();

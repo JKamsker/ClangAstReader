@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 using System.Text;
 
 using ClangReader.Lib.Ast.Models;
@@ -14,10 +16,8 @@ namespace ClangReader.Lib.Ast
 {
     public class AstTokenParserUtils
     {
-
         static AstTokenParserUtils()
         {
-           
         }
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
@@ -40,6 +40,30 @@ namespace ClangReader.Lib.Ast
             }
 
             essential = line[tokenStart..];
+        }
+
+
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+        public static int GetLineDepth(ReadOnlyArraySegment<char> line) => GetLineDepth(line.Span);
+
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public static int GetLineDepth(ReadOnlySpan<char> line)
+        {
+            var lineDepth = 0;
+        
+
+            for (var i = 0; i < line.Length; i += 2)
+            {
+                if (line[i] == '|' || line[i] == '`' || line[i] == ' ' || line[i] == '-')
+                {
+                    lineDepth++;
+                    continue;
+                }
+
+                break;
+            }
+
+            return lineDepth;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
@@ -191,9 +215,7 @@ namespace ClangReader.Lib.Ast
             else
             {
                 token.unknownName = name.ToString();
-                
             }
-
 
             var parameterStartIndex = 0;
             var parameters = AstTokenParserUtils.GetSegments(description).ToArray();

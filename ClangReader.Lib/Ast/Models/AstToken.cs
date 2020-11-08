@@ -111,6 +111,7 @@ namespace ClangReader.Lib.Ast.Models
             var thisCopy = new AstTokenDto
             {
                 Name = unknownName,
+                Type = Type,
                 Attributes = additionalAttributes,
                 Properties = properties,
                 Children = new List<AstTokenDto>(children.Count),
