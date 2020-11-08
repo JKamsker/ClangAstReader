@@ -2,6 +2,12 @@
 
 namespace ClangReader.Lib.Ast.Models
 {
+    public class SimpleWrite
+    {
+        public string Type { get; set; }
+        public DeclRefExprProperties Variable { get; set; }
+    }
+
     public class DeclRefExprProperties : IEquatable<DeclRefExprProperties>
     {
         public DeclRefExprProperties(AstToken token)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using ClangReader.Lib.Ast;
 using ClangReader.Lib.Ast.Models;
 using Newtonsoft.Json;
 
@@ -75,6 +76,11 @@ namespace ClangReader.Lib.Extensions
         public static string SerializeFriendly(this AstToken token)
         {
             return JsonConvert.SerializeObject(token.AsTokenDto(), Formatting.Indented);
+        }
+
+        public static string SerializeFriendly(this AstTokenDto token)
+        {
+            return JsonConvert.SerializeObject(token, Formatting.Indented);
         }
     }
 }

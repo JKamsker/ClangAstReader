@@ -11,7 +11,7 @@ namespace ClangReader.Lib.Ast
     public class AstTokenDto
     {
         [JsonConverter(typeof(StringEnumConverter)), JsonProperty(Order = -1)]
-        public AstKnownSuffix Type { get; set; }
+        public AstType Type { get; set; }
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string Name { get; set; }

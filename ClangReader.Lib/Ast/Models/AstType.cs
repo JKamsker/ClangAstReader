@@ -1,6 +1,6 @@
 ﻿namespace ClangReader.Lib.Ast.Models
 {
-    public enum AstKnownSuffix
+    public enum AstType
     {
         //Cursors
         NOT_PARSED,

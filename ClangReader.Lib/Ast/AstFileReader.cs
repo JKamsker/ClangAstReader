@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
+using ClangReader.Lib.Ast.Interception;
 using ClangReader.Lib.Ast.Models;
 using ClangReader.Lib.Collections;
 using ClangReader.Lib.Extensions;
@@ -53,102 +54,7 @@ namespace ClangReader.Lib.Ast
             });
         }
 
-        public void Parse()
-        {
-            var fastReader = new FastLineReader(_filePath);
-            // var tokenizer = new FastAstTokenizer(fastReader);
-
-            AstToken currentRoot = null;
-            var rootTokens = new List<AstToken>();
-
-            foreach (var rawLine in fastReader.ReadLine())
-            {
-                AstTokenParserUtils.GetEssentialPart(rawLine.ArraySegment, out var lineDepth, out var line);
-                if (lineDepth == 0)
-                {
-                    currentRoot = new AstToken(true);
-                    AstTokenParserUtils.ParseTokenDescription(currentRoot, line);
-                    rootTokens.Add(currentRoot);
-                    //item.MarkAsProcessed();
-                    continue;
-                }
-                else if (currentRoot == null)
-                {
-                    currentRoot = new AstToken(true) { unknownName = "Unknown" };
-                    rootTokens.Add(currentRoot);
-                }
-
-                var token = new AstToken(true);
-                AstTokenParserUtils.ParseTokenDescription(token, line);
-                currentRoot.AddChild(token, lineDepth - 1);
-            }
-        }
-
-        public List<AstToken> Parse_01()
-        {
-            var fastReader = new FastLineReader(_filePath);
-            // var tokenizer = new FastAstTokenizer(fastReader);
-
-            AstToken currentRoot = null;
-            var rootTokens = new List<AstToken>();
-
-            IEnumerable<ReadOnlyListEx<char>> enumerable = fastReader.ReadLine();
-
-            var lineCounter = 0;
-            using var enumerator = enumerable.GetEnumerator();
-            while (enumerator.MoveNext())
-            {
-                lineCounter++;
-                loop_enter:
-
-                var rawLine = enumerator.Current.ArraySegment;
-                AstTokenParserUtils.GetEssentialPart(rawLine, out var lineDepth, out var line);
-                if (lineDepth == 0)
-                {
-                    currentRoot = new AstToken(true);
-                    AstTokenParserUtils.ParseTokenDescription(currentRoot, line);
-                    rootTokens.Add(currentRoot);
-                    //item.MarkAsProcessed();
-                    continue;
-                }
-
-                if (currentRoot == null)
-                {
-                    currentRoot = new AstToken(true) { unknownName = "Unknown" };
-                    rootTokens.Add(currentRoot);
-                }
-
-                var token = new AstToken(true);
-                AstTokenParserUtils.ParseTokenDescription(token, line);
-
-                if (lineDepth == 1 && token.Type != AstKnownSuffix.CXXMethodDecl)
-                {
-                    var lineReadOk = true;
-                    var tempDepth = lineDepth + 1;
-
-                    while (lineDepth < tempDepth && lineReadOk)
-                    {
-                        lineReadOk = enumerator.MoveNext();
-                        rawLine = enumerator.Current.ArraySegment;
-                        lineCounter++;
-                        tempDepth = AstTokenParserUtils.GetLineDepth(rawLine);
-                    }
-
-                    if (lineReadOk)
-                    {
-                        goto loop_enter;
-                    }
-
-                    return rootTokens;
-                }
-
-                currentRoot.AddChild(token, lineDepth - 1);
-            }
-
-            return rootTokens;
-        }
-
-        public List<AstToken> Parse_02()
+        public List<AstToken> Parse(AstParserInterceptor interceptor)
         {
             var fastReader = new FastLineReader(_filePath);
             var readerContext = new AstFileReaderContext(fastReader.ReadLine());
@@ -175,9 +81,8 @@ namespace ClangReader.Lib.Ast
                     rootTokens.Add(currentRoot);
                 }
 
-                if (lineDepth == 1 && token.Type != AstKnownSuffix.CXXMethodDecl)
+                if (interceptor.OnNodeParsed(readerContext, token, lineDepth))
                 {
-                    readerContext.SkipSubTree();
                     continue;
                 }
 
@@ -185,20 +90,6 @@ namespace ClangReader.Lib.Ast
             }
 
             return rootTokens;
-        }
-
-        private void Visit(AstToken currentRoot, HashSet<string> names)
-        {
-            names.Add(currentRoot.unknownName);
-            if (currentRoot.children == null)
-            {
-                return;
-            }
-
-            foreach (var child in currentRoot.children)
-            {
-                Visit(child, names);
-            }
         }
 
         private List<Task> _tasks = new List<Task>();

@@ -41,7 +41,7 @@ namespace ClangReader.Lib.Ast.Models
         public AstTokenContext context;
 
         public AstAttributes Attributes { get; set; }
-        public AstKnownSuffix Type { get; set; }
+        public AstType Type { get; set; }
 
         public string[] properties = Array.Empty<string>();
         public string[] additionalAttributes = Array.Empty<string>();

@@ -19,6 +19,7 @@ using System.Threading.Tasks;
 
 using ClangReader.LanguageTranslation;
 using ClangReader.Lib.Ast;
+using ClangReader.Lib.Ast.Interception;
 using ClangReader.Lib.Ast.Models;
 using ClangReader.Lib.Collections;
 using ClangReader.Lib.Extensions;
@@ -53,11 +54,11 @@ namespace ClangReader
 
         private static void DoAstProcessing(string fileLocation)
         {
-            var forbidden = new HashSet<AstKnownSuffix>()
+            var forbidden = new HashSet<AstType>()
             {
-                AstKnownSuffix.WhileStmt,
-                AstKnownSuffix.ForStmt,
-                AstKnownSuffix.DoStmt,
+                AstType.WhileStmt,
+                AstType.ForStmt,
+                AstType.DoStmt,
             };
 
             ProcessFile(forbidden, fileLocation);
@@ -66,12 +67,15 @@ namespace ClangReader
             Console.ReadKey();
         }
 
-        private static void ProcessFile(HashSet<AstKnownSuffix> forbidden, string file)
+        private static void ProcessFile(HashSet<AstType> forbidden, string file)
         {
+            Console.WriteLine("Parsing");
             var sw = Stopwatch.StartNew();
             var reader = new AstFileReader(file);
-            var rootTokens = reader.Parse_02();
-
+            var rootTokens = reader.Parse(new TypeBasedFilterInterceptor(AstType.CXXMethodDecl));
+            sw.Stop();
+            Console.WriteLine($"Parsing took {sw.Elapsed.TotalMilliseconds} ms");
+    
             foreach (var methodDecl in rootTokens.SelectMany(x => x.children))
             {
                 var methodName = methodDecl.properties.FirstOrDefault();
@@ -97,14 +101,17 @@ namespace ClangReader
                 Debugger.Break();
             }
 
-            sw.Stop();
-            Console.WriteLine(sw.Elapsed.TotalMilliseconds);
+            
             return;
         }
 
         private static void VisitTest(AstToken token)
         {
-            //Console.WriteLine($"{prefix}{token.Type}");
+            if (token.Type == AstType.ForStmt)
+            {
+                Console.WriteLine("For statement");
+            }
+
             foreach (var child in token.children)
             {
                 VisitTest(child);
@@ -112,6 +119,11 @@ namespace ClangReader
 
             if (IsPacketShiftExpression(token))
             {
+                if (TryGetPacketWriteOverloadType(token.children[0], out var typeName))
+                {
+                    Console.Write($"Write type : {typeName} Name: ");
+                }
+
                 if (token.children.Count > 1 && TryGetSimpleWriteFromVar(token.children[2], out var prop))
                 {
                     //Type from
@@ -122,41 +134,81 @@ namespace ClangReader
                     //
                     //token.children[0]
 
-                    Console.WriteLine(prop.Name);
+                    Console.Write(prop.Name);
 
-                    var callPart = token.children[0].SerializeFriendly();
+                    //var callPart = token.children[0].SerializeFriendly();
 
-                    Debugger.Break();
+                    //Debugger.Break();
                 }
                 else if (TryGetMethodCallWrite(token.children[2], out var name))
                 {
-                    Debugger.Break();
+                    //Debugger.Break();
+
+                    Console.Write(name);
                 }
                 else
                 {
-                    var ser = token.SerializeFriendly();
-                    Debugger.Break();
+                    Console.Write("Unknown");
+
+                    //var wholeBodySerialization = token.SerializeFriendly();
+                    //var relevant = token.AsTokenDto();
+                    //relevant.Children[1] = new AstTokenDto();
+                    //var reser = relevant.SerializeFriendly();
+
+                    //Debugger.Break();
                 }
+
                 //var accessor = GetChildAccesor(token.children[2]);
+                Console.WriteLine();
             }
+        }
+
+        private static bool TryGetPacketWriteOverloadType(AstToken token, out string typeName)
+        {
+            switch (token.Type)
+            {
+                case AstType.ImplicitCastExpr:
+                    foreach (var tokenChild in token.children)
+                    {
+                        if (TryGetPacketWriteOverloadType(tokenChild, out typeName))
+                        {
+                            return true;
+                        }
+                    }
+                    break;
+
+                case AstType.DeclRefExpr:
+                    var match = Regex.Match(token.properties[0], "CPacket.*?\\((.*?)\\)");
+                    if (match.Success)
+                    {
+                        typeName = match.Groups[1].Value;
+                        return true;
+                    }
+                    break;
+
+                default:
+                    break;
+            }
+
+            typeName = string.Empty;
+            return false;
         }
 
         private static bool TryGetMethodCallWrite(AstToken token, out string name)
         {
             //ImplicitCastExpr
 
-
             name = string.Empty;
 
             DeclRefExprProperties properties = null;
             switch (token.Type)
             {
-                case AstKnownSuffix.MemberExpr when token.properties[0] == "<bound member function type>":
+                case AstType.MemberExpr when token.properties[0] == "<bound member function type>":
                     name = token.properties[1];
                     name = name.TrimStart("->").TrimStart("Get");
                     return true;
 
-                case AstKnownSuffix.CXXMemberCallExpr:
+                case AstType.CXXMemberCallExpr:
                     foreach (var tokenChild in token.children)
                     {
                         if (TryGetMethodCallWrite(tokenChild, out name))
@@ -175,7 +227,7 @@ namespace ClangReader
 
         private static bool IsPacketShiftExpression(AstToken token)
         {
-            return token.Type == AstKnownSuffix.CXXOperatorCallExpr && token.properties.Length <= 3 && (token.properties[2] == "<<" || token.properties[2] == "'<<'");
+            return token.Type == AstType.CXXOperatorCallExpr && token.properties.Length <= 3 && (token.properties[2] == "<<" || token.properties[2] == "'<<'");
         }
 
         private static bool TryGetSimpleWriteFromVar(AstToken token, out DeclRefExprProperties properties)
@@ -183,12 +235,12 @@ namespace ClangReader
             properties = null;
             switch (token.Type)
             {
-                case AstKnownSuffix.DeclRefExpr when token.children.Count == 0:
+                case AstType.DeclRefExpr when token.children.Count == 0:
                     properties = new DeclRefExprProperties(token);
                     return true;
 
-                case AstKnownSuffix.CXXOperatorCallExpr when IsPacketShiftExpression(token):
-                case AstKnownSuffix.ImplicitCastExpr:
+                case AstType.CXXOperatorCallExpr when IsPacketShiftExpression(token):
+                case AstType.ImplicitCastExpr:
                     foreach (var tokenChild in token.children)
                     {
                         if (TryGetSimpleWriteFromVar(tokenChild, out properties))
@@ -206,18 +258,18 @@ namespace ClangReader
 
         private static DeclRefExprProperties GetChildAccesor(AstToken token)
         {
-            if (token.Type == AstKnownSuffix.DeclRefExpr && token.children.Count == 0)
+            if (token.Type == AstType.DeclRefExpr && token.children.Count == 0)
             {
                 return new DeclRefExprProperties(token);
             }
 
-            if (token.Type == AstKnownSuffix.MemberExpr && token.children.Count > 0 && token.properties[0] == "<bound member function type>")
+            if (token.Type == AstType.MemberExpr && token.children.Count > 0 && token.properties[0] == "<bound member function type>")
             {
                 var func = token.properties[1];
                 //Debugger.Break();
             }
 
-            if (token.Type == AstKnownSuffix.CXXMemberCallExpr)
+            if (token.Type == AstType.CXXMemberCallExpr)
             {
                 Debugger.Break();
             }
@@ -234,7 +286,7 @@ namespace ClangReader
             return null;
         }
 
-        private static void ProcessMethod(HashSet<AstKnownSuffix> forbidden, AstToken methodDecl, DeclRefExprProperties saidMsg)
+        private static void ProcessMethod(HashSet<AstType> forbidden, AstToken methodDecl, DeclRefExprProperties saidMsg)
         {
             // Should be able to handle all later...
             var usages = GetUsages(saidMsg, methodDecl).ToList();
@@ -245,7 +297,7 @@ namespace ClangReader
                     .ToList();
 
                 var allOperatorExpressions = parentsInMethod
-                    .Where(x => x.Type == AstKnownSuffix.CXXOperatorCallExpr)
+                    .Where(x => x.Type == AstType.CXXOperatorCallExpr)
                     .Where(x => x.properties.Length == 3 && (x.properties[2] == "<<" || x.properties[2] == "'<<'"))
                     .ToList();
 
@@ -255,7 +307,7 @@ namespace ClangReader
 
                 foreach (var parent in goodParents)
                 {
-                    var decl = parent.children[2].VisitEnumerable(x => x.Type == AstKnownSuffix.DeclRefExpr).FirstOrDefault();
+                    var decl = parent.children[2].VisitEnumerable(x => x.Type == AstType.DeclRefExpr).FirstOrDefault();
                     if (decl == null)
                     {
                         continue;
@@ -307,7 +359,7 @@ namespace ClangReader
         {
             return methodDecl.VisitEnumerable
             (
-                x => x.Type == AstKnownSuffix.DeclRefExpr && new DeclRefExprProperties(x).Equals(saidMsg)
+                x => x.Type == AstType.DeclRefExpr && new DeclRefExprProperties(x).Equals(saidMsg)
             );
         }
 
@@ -315,14 +367,14 @@ namespace ClangReader
         {
             var memberExpressions = methodDecl.VisitEnumerable
             (
-                x => x.Type == AstKnownSuffix.MemberExpr && x.parent.Type == AstKnownSuffix.CXXMemberCallExpr && x.properties.Contains("->Say")
+                x => x.Type == AstType.MemberExpr && x.parent.Type == AstType.CXXMemberCallExpr && x.properties.Contains("->Say")
             );
 
             foreach (var memberExpression in memberExpressions)
             {
                 var otherchildren = memberExpression.parent
                         .VisitEnumerable(x => x != memberExpression)
-                        .Where(x => x.Type == AstKnownSuffix.DeclRefExpr)
+                        .Where(x => x.Type == AstType.DeclRefExpr)
                         .Select(x => new DeclRefExprProperties(x))
                         .ToList()
                     ;
