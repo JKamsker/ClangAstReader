@@ -38,205 +38,20 @@ namespace ClangReader
     {
         public static void Main(string[] args)
         {
-            DoAstProcessing();
+            var fileLocation = @$"{Environment.CurrentDirectory}\..\..\..\..\..\.local\cssender-02.ast";
+            if (!File.Exists(fileLocation))
+            {
+                Console.WriteLine($"File '{fileLocation}' doesnt exist");
+                Console.ReadLine();
+                return;
+            }
+
+            DoAstProcessing(fileLocation);
             Console.WriteLine("kkk");
             Console.ReadLine();
         }
 
-        private static Assembly? CurrentDomain_AssemblyResolve(object? sender, ResolveEventArgs args)
-        {
-            Debugger.Break();
-            return null;
-        }
-
-        private static Assembly? AssemblyLoadContext_AssemblyResolve(AssemblyLoadContext arg1, AssemblyName arg2)
-        {
-            if (arg2.FullName.StartsWith("SomeOrdinaryLib"))
-            {
-                return Assembly.LoadFile(@"C:\Users\Weirdo\source\repos\external\ClangAstReader\SomeOrdinaryLib\bin\Debug\netcoreapp3.1\out\SomeOrdinaryLib-mod-02.dll");
-            }
-
-            Debugger.Break();
-            return null;
-        }
-
-        private static void DoSomeOrdinaryStufF()
-        {
-            var rstr = new SomeOrdinaryLib.StringResultStruct(20);
-
-            rstr.SpanValue[0] = 'a';
-            Console.WriteLine(rstr.StringValue);
-        }
-
-        private static void Splitfancy(bool skipEmpty = true)
-        {
-            var stringBuilder = new List<string>();
-            var aspan = "as,da-sd,,f".AsSpan();
-
-            var tempspan = aspan.Slice(0);
-            while (tempspan.Length != 0)
-            {
-                var index = tempspan.IndexOfAny(',', '-');
-                if (index == -1)
-                {
-                    stringBuilder.Add(tempspan.ToString());
-                    tempspan = ReadOnlySpan<char>.Empty;
-                    // Console.WriteLine(stringBuilder.ToString());
-                    break;
-                }
-
-                if (index > 0 || (index == 0 && !skipEmpty))
-                {
-                    var window = tempspan[0..index];
-                    stringBuilder.Add(window.ToString());
-                }
-
-                tempspan = tempspan[++index..];
-            }
-            Debugger.Break();
-        }
-
-        private static void PerfTestSingleThread()
-        {
-            var engine = new StringSplitEngine
-            (
-                new EnclosureOptions('\''),
-                new EnclosureOptions('"'),
-                new EnclosureOptions('<', '>')
-            );
-
-            var sw3 = Stopwatch.StartNew();
-
-            long donotOptimize = 0;
-            foreach (var line in File.ReadLines(@"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast"))
-            {
-                var a = engine.SplitSegmented(line);
-                donotOptimize += (int)a.FirstOrDefault().Length;
-            }
-            GC.Collect(3, GCCollectionMode.Forced);
-            sw3.Stop();
-            Console.WriteLine($"Singlethreaded Completed in {sw3.Elapsed.TotalMilliseconds}");
-
-            Console.ReadLine();
-        }
-
-        private static bool running;
-        private static Channel<IEnumerable<string>> inputChannel;
-
-        private static async Task PerfTestMultiThreaded()
-        {
-            while (true)
-            {
-                running = true;
-                var workers = new List<Task>();
-
-                inputChannel = Channel.CreateBounded<IEnumerable<string>>(new BoundedChannelOptions(10 * 1024)
-                {
-                    SingleWriter = true,
-                    SingleReader = false,
-                    AllowSynchronousContinuations = false,
-                });
-
-                for (int i = 0; i < Environment.ProcessorCount; i++)
-                {
-                    workers.Add(Task.Factory.StartNew(async () => await DoWork()));
-                }
-
-                var sw = Stopwatch.StartNew();
-                foreach (var lines in File.ReadLines(@"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast").ChunkIn(512))
-                {
-                    await inputChannel.Writer.WriteAsync(lines);
-                }
-
-                inputChannel.Writer.Complete();
-                running = false;
-
-                await Task.WhenAll(workers);
-
-                sw.Stop();
-                Console.WriteLine($"Finished in {sw.Elapsed.TotalMilliseconds}");
-            }
-        }
-
-        private static async Task DoWork()
-        {
-            var engine = new StringSplitEngine
-            (
-                new EnclosureOptions('\''),
-                new EnclosureOptions('"'),
-                new EnclosureOptions('<', '>')
-            );
-
-            long donotOptimize = 0;
-
-            try
-            {
-                while (running)
-                {
-                    var lines = await inputChannel.Reader.ReadAsync();
-                    foreach (var line in lines)
-                    {
-                        var res = engine.SplitSegmented(line);
-                        donotOptimize += (int)res.FirstOrDefault().Length;
-                    }
-                }
-            }
-            catch (OperationCanceledException e)
-            {
-            }
-        }
-
-        private static void TestEngine()
-        {
-            var engine = new StringSplitEngine
-            (
-                new EnclosureOptions('\''),
-                new EnclosureOptions('"'),
-                new EnclosureOptions('<', '>')
-            );
-
-            //var reference =  "'OI BOY' Boy Oi <start ay ay <level oi d > end > this should be extra <start but no< end >";
-            //var result = engine.Split(reference);
-            //var result1 = StringArrayEnumerator.GetStringArray_Old(reference);
-
-            var lines = File.ReadLines(@"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast");
-            foreach (var line in lines)
-            {
-                var result = engine.Split(line);
-                var result1 = engine.SplitSegmented(line).Select(x => x.ToString()).ToArray();
-
-                if (result.SequenceEqual(result1))
-                {
-                    continue;
-                }
-
-                if (result.Length != result1.Length)
-                {
-                    Console.WriteLine("Len unequal");
-                    //Debugger.Break();
-                    continue;
-                }
-
-                foreach (var (res1, res2, curi) in result.Zip(result1, (x, y) => (x, y)).Select((x, i) => (x.x, x.y, i)))
-                {
-                    if (res1.Equals(res2))
-                    {
-                        continue;
-                    }
-
-                    if (res1.Equals(res2.TrimStart('\'').TrimEnd('\'')))
-                    {
-                        continue;
-                    }
-
-                    Console.WriteLine($"|{res1}| != |{res2}| at {curi}");
-                }
-
-                //Debugger.Break();
-            }
-        }
-
-        private static void DoAstProcessing()
+        private static void DoAstProcessing(string fileLocation)
         {
             var forbidden = new HashSet<AstKnownSuffix>()
             {
@@ -245,7 +60,7 @@ namespace ClangReader
                 AstKnownSuffix.DoStmt,
             };
 
-            ProcessFile(forbidden, @"C:\Users\Weirdo\source\repos\4Story\Agnares\4Story_5.0_Source\Client\astout\cssender-02.ast");
+            ProcessFile(forbidden, fileLocation);
 
             Console.WriteLine("[Wait for key press]");
             Console.ReadKey();
