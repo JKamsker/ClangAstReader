@@ -159,12 +159,13 @@ namespace ClangReader.Lib.Ast
             foreach (var rawLine in readerContext)
             {
                 AstTokenParserUtils.GetEssentialPart(rawLine, out var lineDepth, out var line);
+                var token = new AstToken(true) { Line = readerContext.CurrentLine }; ;
+                AstTokenParserUtils.ParseTokenDescription(token, line);
+
                 if (lineDepth == 0)
                 {
-                    currentRoot = new AstToken(true) { Line = readerContext.CurrentLine };
-                    AstTokenParserUtils.ParseTokenDescription(currentRoot, line);
-                    rootTokens.Add(currentRoot);
-                    //item.MarkAsProcessed();
+                    currentRoot = token;
+                    rootTokens.Add(token);
                     continue;
                 }
 
@@ -174,8 +175,6 @@ namespace ClangReader.Lib.Ast
                     rootTokens.Add(currentRoot);
                 }
 
-                var token = new AstToken(true) { Line = readerContext.CurrentLine }; ;
-                AstTokenParserUtils.ParseTokenDescription(token, line);
                 if (lineDepth == 1 && token.Type != AstKnownSuffix.CXXMethodDecl)
                 {
                     readerContext.SkipSubTree();
