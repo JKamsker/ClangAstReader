@@ -81,6 +81,7 @@ namespace ClangReader
                 var methodName = methodDecl.properties.FirstOrDefault();
                 // Console.WriteLine(methodName);
                 if (methodName != "SendCS_FINISHSKILL_ACK")
+                    //if (methodName != "SendCS_AUCTIONREG_REQ")
                 {
                     continue;
                 }
@@ -96,7 +97,8 @@ namespace ClangReader
 
                 var ser = methodDecl.SerializeFriendly();
 
-                VisitTest(methodDecl);
+                var translationVisitor = new FourSPacketTranslationVisitor();
+                translationVisitor.VisitTest(methodDecl);
 
 
 
@@ -106,156 +108,9 @@ namespace ClangReader
             return;
         }
 
-        private static void VisitTest(AstToken token)
-        {
-            if (token.Type == AstType.ForStmt)
-            {
-                Console.WriteLine("For statement");
-            }
+        
 
-            foreach (var child in token.children)
-            {
-                VisitTest(child);
-            }
-
-            if (IsPacketShiftExpression(token))
-            {
-                //Type from token.children[0]
-                //
-                //|-CXXOperatorCallExpr 0x1f38c6b5468 <line:2997:2, line:3005:6> 'CPacket' lvalue '<<'
-                //| |-ImplicitCastExpr 0x1f38c6b5450 <col:3> 'CPacket &(*)(int)' <FunctionToPointerDecay>
-                //| | `-DeclRefExpr 0x1f38c6b5430 <col:3> 'CPacket &(int)' lvalue CXXMethod 0x1f386e73ac8 'operator<<' 'CPacket &(int)'
-
-                if (TryGetPacketWriteOverloadType(token.children[0], out var typeName))
-                {
-                    Console.Write($"Write type : {typeName} Name: ");
-                }
-
-                if (token.children.Count > 1 && TryGetSimpleWriteFromVar(token.children[2], out var prop))
-                {
-                    Console.Write(prop.Name);
-
-                    //var callPart = token.children[0].SerializeFriendly();
-
-                    //Debugger.Break();
-                }
-                else if (TryGetMethodCallWrite(token.children[2], out var name))
-                {
-                    //Debugger.Break();
-
-                    Console.Write(name);
-                }
-                else
-                {
-                    Console.Write("Unknown");
-
-                    var bdy = AstTranslator.GetFunctionBody(token.children[2]);
-
-                    //var wholeBodySerialization = token.SerializeFriendly();
-                    var relevant = token.AsTokenDto();
-                    relevant.Children[1] = new AstTokenDto();
-                    var reser = relevant.SerializeFriendly();
-
-                    //Debugger.Break();
-                }
-
-                //var accessor = GetChildAccesor(token.children[2]);
-                Console.WriteLine();
-            }
-        }
-
-        private static bool TryGetPacketWriteOverloadType(AstToken token, out string typeName)
-        {
-            switch (token.Type)
-            {
-                case AstType.ImplicitCastExpr:
-                    foreach (var tokenChild in token.children)
-                    {
-                        if (TryGetPacketWriteOverloadType(tokenChild, out typeName))
-                        {
-                            return true;
-                        }
-                    }
-                    break;
-
-                case AstType.DeclRefExpr:
-                    var match = Regex.Match(token.properties[0], "CPacket.*?\\((.*?)\\)");
-                    if (match.Success)
-                    {
-                        typeName = match.Groups[1].Value;
-                        return true;
-                    }
-                    break;
-
-                default:
-                    break;
-            }
-
-            typeName = string.Empty;
-            return false;
-        }
-
-        private static bool TryGetMethodCallWrite(AstToken token, out string name)
-        {
-            //ImplicitCastExpr
-
-            name = string.Empty;
-
-            DeclRefExprProperties properties = null;
-            switch (token.Type)
-            {
-                case AstType.MemberExpr when token.properties[0] == "<bound member function type>":
-                    name = token.properties[1];
-                    name = name.TrimStart("->").TrimStart("Get");
-                    return true;
-
-                case AstType.CXXMemberCallExpr:
-                    foreach (var tokenChild in token.children)
-                    {
-                        if (TryGetMethodCallWrite(tokenChild, out name))
-                        {
-                            return true;
-                        }
-                    }
-                    break;
-
-                default:
-                    break;
-            }
-            return false;
-            return false;
-        }
-
-        private static bool IsPacketShiftExpression(AstToken token)
-        {
-            return token.Type == AstType.CXXOperatorCallExpr && token.properties.Length <= 3 && (token.properties[2] == "<<" || token.properties[2] == "'<<'");
-        }
-
-        private static bool TryGetSimpleWriteFromVar(AstToken token, out DeclRefExprProperties properties)
-        {
-            properties = null;
-            switch (token.Type)
-            {
-                case AstType.DeclRefExpr when token.children.Count == 0:
-                    properties = new DeclRefExprProperties(token);
-                    return true;
-
-                case AstType.CXXOperatorCallExpr when IsPacketShiftExpression(token):
-                case AstType.ImplicitCastExpr:
-                    foreach (var tokenChild in token.children)
-                    {
-                        if (TryGetSimpleWriteFromVar(tokenChild, out properties))
-                        {
-                            return true;
-                        }
-                    }
-                    break;
-
-                default:
-                    break;
-            }
-            return false;
-        }
+       
 
         private static DeclRefExprProperties GetChildAccesor(AstToken token)
         {
