@@ -9,6 +9,7 @@ using ClangReader.LanguageTranslation;
 using ClangReader.Lib.Ast;
 using ClangReader.Lib.Ast.Models;
 using ClangReader.Lib.Extensions;
+using ClangReader.StructTranslation;
 using ClangReader.Utilities;
 
 namespace ClangReader
@@ -45,38 +46,59 @@ namespace ClangReader
                     return;
                 }
 
-                var instructionvisitor = 
-
-
-                if (token.children.Count > 1 && TryGetSimpleWriteFromVar(token.children[2], out var prop))
+                if (token.children.Count < 2)
                 {
-                    Console.Write(prop.Name);
-
-                    //var callPart = token.children[0].SerializeFriendly();
-
-                    //Debugger.Break();
+                    Console.WriteLine("Unhandled: children count is smaller than expected!");
+                    Debugger.Break();
+                    return;
                 }
-                else if (TryGetMethodCallWrite(token.children[2], out var name))
-                {
-                    //Debugger.Break();
 
-                    Console.Write(name);
-                }
-                else if (TryParseSizeAccessor(token.children[2]))
+                var instructionvisitor = new InstructionVisitor(token.children[2]);
+                var executionResult = instructionvisitor.Execute();
+                if (!executionResult)
                 {
-                    //Debugger.Break();
-                }
-                else
-                {
-                    Console.Write("Unknown");
+                    Console.WriteLine("Unknown");
 
                     var bdy = AstTranslator.GetFunctionBody(token.children[2]);
                     var relevant = token.AsTokenDto();
                     relevant.Children[1] = new AstTokenDto();
                     var reser = relevant.SerializeFriendly();
 
+
                     Debugger.Break();
                 }
+
+
+
+                //if (token.children.Count > 1 && TryGetSimpleWriteFromVar(token.children[2], out var prop))
+                //{
+                //    Console.Write(prop.Name);
+
+                //    //var callPart = token.children[0].SerializeFriendly();
+
+                //    //Debugger.Break();
+                //}
+                //else if (TryGetMethodCallWrite(token.children[2], out var name))
+                //{
+                //    //Debugger.Break();
+
+                //    Console.Write(name);
+                //}
+                //else if (TryParseSizeAccessor(token.children[2]))
+                //{
+                //    //Debugger.Break();
+                //}
+                //else
+                //{
+                //    Console.Write("Unknown");
+
+                //    var bdy = AstTranslator.GetFunctionBody(token.children[2]);
+                //    var relevant = token.AsTokenDto();
+                //    relevant.Children[1] = new AstTokenDto();
+                //    var reser = relevant.SerializeFriendly();
+
+                //    Debugger.Break();
+                //}
 
                 //var accessor = GetChildAccesor(token.children[2]);
                 Console.WriteLine();

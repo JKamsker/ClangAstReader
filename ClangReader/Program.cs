@@ -80,8 +80,8 @@ namespace ClangReader
             {
                 var methodName = methodDecl.properties.FirstOrDefault();
                 // Console.WriteLine(methodName);
-                if (methodName != "SendCS_FINISHSKILL_ACK")
-                    //if (methodName != "SendCS_AUCTIONREG_REQ")
+               if (methodName != "SendCS_FINISHSKILL_ACK")
+                // if (methodName != "SendCS_AUCTIONREG_REQ")
                 {
                     continue;
                 }
